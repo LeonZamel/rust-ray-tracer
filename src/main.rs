@@ -1,4 +1,5 @@
 use std::fs;
+use std::ops;
 
 const IMAGE_WIDTH: usize = 256;
 const IMAGE_HEIGHT: usize = 256;
@@ -8,6 +9,59 @@ struct Vec3 {
     x: f64,
     y: f64,
     z: f64,
+}
+
+impl Vec3 {
+    fn new(x: f64, y: f64, z: f64) -> Vec3 {
+        Vec3 { x, y, z }
+    }
+
+    fn dot(&self, other: &Vec3) -> f64 {
+        self.x * other.x + self.y * other.y + self.z * other.z
+    }
+
+    fn length_squared(&self) -> f64 {
+        self.x * self.x + self.y * self.y + self.z * self.z
+    }
+
+    fn length(&self) -> f64 {
+        self.length_squared().sqrt()
+    }
+
+    fn unit_vector(self) -> Vec3 {
+        self / self.length()
+    }
+}
+
+impl ops::Add<Vec3> for Vec3 {
+    type Output = Self;
+    fn add(self, _rhs: Vec3) -> Vec3 {
+        Vec3 {
+            x: self.x + _rhs.x,
+            y: self.y + _rhs.y,
+            z: self.z + _rhs.z,
+        }
+    }
+}
+impl ops::Mul<f64> for Vec3 {
+    type Output = Self;
+    fn mul(self, _rhs: f64) -> Vec3 {
+        Vec3 {
+            x: self.x * _rhs,
+            y: self.y * _rhs,
+            z: self.z * _rhs,
+        }
+    }
+}
+impl ops::Div<f64> for Vec3 {
+    type Output = Self;
+    fn div(self, _rhs: f64) -> Vec3 {
+        Vec3 {
+            x: self.x / _rhs,
+            y: self.y / _rhs,
+            z: self.z / _rhs,
+        }
+    }
 }
 
 fn main() {
