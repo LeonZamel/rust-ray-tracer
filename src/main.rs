@@ -64,6 +64,18 @@ impl ops::Div<f64> for Vec3 {
     }
 }
 
+#[derive(Copy, Clone)]
+struct Ray {
+    origin: Vec3,
+    direction: Vec3,
+}
+
+impl Ray {
+    fn at(&self, t: f64) -> Vec3 {
+        self.origin + self.direction * t
+    }
+}
+
 fn main() {
     let mut image: Vec<Vec<Vec3>> = vec![
         vec![
