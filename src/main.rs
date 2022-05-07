@@ -1,7 +1,10 @@
 use std::fs;
 use std::ops;
 
+const INFINITY: f64 = 999999.0;
+
 static ASPECT_RATIO: f64 = 16.0 / 9.0;
+
 static IMAGE_HEIGHT: usize = 400;
 static IMAGE_WIDTH: usize = (IMAGE_HEIGHT as f64 * ASPECT_RATIO) as usize;
 
@@ -166,21 +169,48 @@ fn normal_to_color(normal: &Vec3) -> Vec3 {
     Vec3::new(1.0 + normal.x, 1.0 + normal.y, 1.0 + normal.z) * 0.5
 }
 
-fn ray_color(ray: &Ray, world: &Vec<Box<dyn Hittable>>) -> Option<Vec3> {
-    for obj in world {
-        match obj.hit(ray, 0.0, 1000000.0) {
-            None => continue,
-            Some(hit) => return Some(normal_to_color(&hit.normal)),
-        }
+fn ray_color(ray: &Ray, world: &HittableList) -> Vec3 {
+    let hit = world.hit(ray, 0.0, INFINITY);
+    match hit {
+        None => background(&ray),
+        Some(hit) => normal_to_color(&hit.normal),
     }
-    None
 }
 
-fn background(i: f64, j: f64) -> Vec3 {
+fn background(ray: &Ray) -> Vec3 {
+    let unit_dir = ray.direction.unit_vector();
     Vec3 {
-        x: j / IMAGE_HEIGHT as f64 / 2.0 + 0.5,
-        y: j / IMAGE_HEIGHT as f64 / 2.0 + 0.5,
+        x: unit_dir.y as f64 / 2.0 + 0.5,
+        y: unit_dir.y as f64 / 2.0 + 0.5,
         z: 1.0,
+    }
+}
+
+struct HittableList {
+    hittables: Vec<Box<dyn Hittable>>,
+}
+impl HittableList {
+    fn new() -> HittableList {
+        HittableList {
+            hittables: Vec::new(),
+        }
+    }
+    fn push(mut self, hittable: Box<dyn Hittable>) -> Self {
+        self.hittables.push(hittable);
+        self
+    }
+}
+impl Hittable for HittableList {
+    fn hit(&self, ray: &Ray, t_min: f64, t_max: f64) -> Option<Hit> {
+        let mut closest_hit: Option<Hit> = None;
+        let closest_dist = t_max;
+        for obj in &self.hittables {
+            match obj.hit(ray, t_min, closest_dist) {
+                None => continue,
+                Some(hit) => closest_hit = Some(hit),
+            }
+        }
+        closest_hit
     }
 }
 
@@ -209,8 +239,8 @@ fn main() {
     ];
 
     // World
-    let mut objects: Vec<Box<dyn Hittable>> = Vec::new();
-    objects.push(Box::new(Sphere {
+    let mut objects = HittableList::new();
+    objects = objects.push(Box::new(Sphere {
         center: Vec3::new(0.0, 0.0, -1.0),
         radius: 0.5,
     }));
@@ -226,10 +256,7 @@ fn main() {
                     + horizontal * horizontal_frac
                     + vertical * vertical_frac,
             };
-            image[j][i] = match ray_color(&ray, &objects) {
-                None => background(i as f64, j as f64),
-                Some(color) => color,
-            }
+            image[j][i] = ray_color(&ray, &objects);
         }
     }
 
