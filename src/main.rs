@@ -214,16 +214,58 @@ impl Hittable for HittableList {
     }
 }
 
+struct Camera {
+    aspect_ratio: f64,
+    viewport_height: f64,
+    viewport_width: f64,
+    focal_length: f64,
+    horizontal: Vec3,
+    vertical: Vec3,
+    origin: Vec3,
+    lower_left_viewport_corner: Vec3,
+}
+impl Camera {
+    fn new(
+        aspect_ratio: f64,
+        viewport_height: f64,
+        viewport_width: f64,
+        focal_length: f64,
+    ) -> Camera {
+        let horizontal = Vec3::new(viewport_width, 0.0, 0.0);
+        let vertical = Vec3::new(0.0, viewport_height, 0.0);
+        let origin = Vec3::new(0.0, 0.0, 0.0);
+        let lower_left_viewport_corner =
+            origin - horizontal / 2.0 - vertical / 2.0 - Vec3::new(0.0, 0.0, focal_length);
+
+        Camera {
+            aspect_ratio,
+            viewport_height,
+            viewport_width,
+            focal_length,
+            horizontal,
+            vertical,
+            origin,
+            lower_left_viewport_corner,
+        }
+    }
+    fn get_ray(&self, horizontal_frac: f64, vertical_frac: f64) -> Ray {
+        Ray {
+            origin: self.origin,
+            direction: self.lower_left_viewport_corner
+                + self.horizontal * horizontal_frac
+                + self.vertical * vertical_frac,
+        }
+    }
+}
+
 fn main() {
     let viewport_height: f64 = 2.0;
-    let viewport_width: f64 = viewport_height * ASPECT_RATIO;
-    let focal_length: f64 = 1.0;
-
-    let horizontal = Vec3::new(viewport_width, 0.0, 0.0);
-    let vertical = Vec3::new(0.0, viewport_height, 0.0);
-    let origin = Vec3::new(0.0, 0.0, 0.0);
-    let lower_left_viewport_corner =
-        origin - horizontal / 2.0 - vertical / 2.0 - Vec3::new(0.0, 0.0, focal_length);
+    let camera = Camera::new(
+        ASPECT_RATIO,
+        viewport_height,
+        viewport_height * ASPECT_RATIO,
+        1.0,
+    );
 
     // Init
     let mut image: Vec<Vec<Vec3>> = vec![
@@ -250,12 +292,7 @@ fn main() {
         for i in 0..IMAGE_WIDTH {
             let horizontal_frac = i as f64 / (IMAGE_WIDTH as f64 - 1.0);
             let vertical_frac = j as f64 / (IMAGE_HEIGHT as f64 - 1.0);
-            let ray = Ray {
-                origin,
-                direction: lower_left_viewport_corner
-                    + horizontal * horizontal_frac
-                    + vertical * vertical_frac,
-            };
+            let ray = camera.get_ray(horizontal_frac, vertical_frac);
             image[j][i] = ray_color(&ray, &objects);
         }
     }
