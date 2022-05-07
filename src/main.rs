@@ -195,9 +195,8 @@ impl HittableList {
             hittables: Vec::new(),
         }
     }
-    fn push(mut self, hittable: Box<dyn Hittable>) -> Self {
+    fn push(&mut self, hittable: Box<dyn Hittable>) {
         self.hittables.push(hittable);
-        self
     }
 }
 impl Hittable for HittableList {
@@ -282,7 +281,7 @@ fn main() {
 
     // World
     let mut objects = HittableList::new();
-    objects = objects.push(Box::new(Sphere {
+    objects.push(Box::new(Sphere {
         center: Vec3::new(0.0, 0.0, -1.0),
         radius: 0.5,
     }));
