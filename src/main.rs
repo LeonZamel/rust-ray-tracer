@@ -1,6 +1,10 @@
 use std::fs;
 use std::ops;
 
+static ASPECT_RATIO: f64 = 16.0 / 9.0;
+static IMAGE_HEIGHT: usize = 400;
+static IMAGE_WIDTH: usize = (IMAGE_HEIGHT as f64 * ASPECT_RATIO) as usize;
+
 #[derive(Copy, Clone)]
 struct Vec3 {
     x: f64,
@@ -158,16 +162,38 @@ impl Hittable for Sphere {
     }
 }
 
-fn main() {
-    const ASPECT_RATIO: f64 = 16.0 / 9.0;
-    const IMAGE_WIDTH: usize = 400;
-    const IMAGE_HEIGHT: usize = 225; // == IMAGE_WIDTH / ASPECT_RATIO
+fn normal_to_color(normal: &Vec3) -> Vec3 {
+    Vec3::new(1.0 + normal.x, 1.0 + normal.y, 1.0 + normal.z) * 0.5
+}
 
-    let viewport_width: f64 = 2.0;
-    let viewport_height: f64 = viewport_width / ASPECT_RATIO;
+fn ray_color(ray: &Ray, world: &Vec<Box<dyn Hittable>>) -> Option<Vec3> {
+    for obj in world {
+        match obj.hit(ray, 0.0, 1000000.0) {
+            None => continue,
+            Some(hit) => return Some(normal_to_color(&hit.normal)),
+        }
+    }
+    None
+}
+
+fn background(i: f64, j: f64) -> Vec3 {
+    Vec3 {
+        x: j / IMAGE_HEIGHT as f64 / 2.0 + 0.5,
+        y: j / IMAGE_HEIGHT as f64 / 2.0 + 0.5,
+        z: 1.0,
+    }
+}
+
+fn main() {
+    let viewport_height: f64 = 2.0;
+    let viewport_width: f64 = viewport_height * ASPECT_RATIO;
     let focal_length: f64 = 1.0;
 
+    let horizontal = Vec3::new(viewport_width, 0.0, 0.0);
+    let vertical = Vec3::new(0.0, viewport_height, 0.0);
     let origin = Vec3::new(0.0, 0.0, 0.0);
+    let lower_left_viewport_corner =
+        origin - horizontal / 2.0 - vertical / 2.0 - Vec3::new(0.0, 0.0, focal_length);
 
     // Init
     let mut image: Vec<Vec<Vec3>> = vec![
@@ -182,22 +208,30 @@ fn main() {
         IMAGE_HEIGHT
     ];
 
-    for j in 0..IMAGE_HEIGHT {
-        for i in 0..IMAGE_WIDTH {
-            image[j][i] = Vec3 {
-                x: j as f64 / IMAGE_HEIGHT as f64,
-                y: j as f64 / IMAGE_HEIGHT as f64,
-                z: 1.0 * 255.0,
-            }
-        }
-    }
-
     // World
     let mut objects: Vec<Box<dyn Hittable>> = Vec::new();
     objects.push(Box::new(Sphere {
         center: Vec3::new(0.0, 0.0, -1.0),
         radius: 0.5,
     }));
+
+    // Render
+    for j in (0..IMAGE_HEIGHT).rev() {
+        for i in 0..IMAGE_WIDTH {
+            let horizontal_frac = i as f64 / (IMAGE_WIDTH as f64 - 1.0);
+            let vertical_frac = j as f64 / (IMAGE_HEIGHT as f64 - 1.0);
+            let ray = Ray {
+                origin,
+                direction: lower_left_viewport_corner
+                    + horizontal * horizontal_frac
+                    + vertical * vertical_frac,
+            };
+            image[j][i] = match ray_color(&ray, &objects) {
+                None => background(i as f64, j as f64),
+                Some(color) => color,
+            }
+        }
+    }
 
     // Write to file
     let mut data = "P3\n".to_string()
@@ -209,11 +243,11 @@ fn main() {
 
     for row in image {
         for vec in row {
-            data += &((vec.x as i32).to_string()
+            data += &(((vec.x * 255.0) as i32).to_string()
                 + " "
-                + &(vec.y as i32).to_string()
+                + &((vec.y * 255.0) as i32).to_string()
                 + " "
-                + &(vec.z as i32).to_string()
+                + &((vec.z * 255.0) as i32).to_string()
                 + "\n")
         }
     }
