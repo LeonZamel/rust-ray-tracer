@@ -100,12 +100,17 @@ impl Ray {
     }
 }
 
+trait Material {
+    fn get_color(&self, hit: &Hit) -> Vec3;
+}
+
 struct Hit {
     p: Vec3,
     normal: Vec3, // Always points opposite to hit ray
     t: f64,
     front_face: bool, // If the face that was hit was the front, i.e. outward face
 }
+
 impl Hit {
     fn new(p: Vec3, outward_normal: Vec3, t: f64, ray: &Ray) -> Hit {
         let (front_face, normal) = Hit::to_face_normal(ray, outward_normal);
@@ -131,11 +136,13 @@ impl Hit {
 
 trait Hittable {
     fn hit(&self, ray: &Ray, t_min: f64, t_max: f64) -> Option<Hit>;
+    fn get_color(&self, hit: &Hit) -> Vec3;
 }
 
 struct Sphere {
     center: Vec3,
     radius: f64,
+    material: Box<dyn Material>,
 }
 
 impl Hittable for Sphere {
@@ -163,17 +170,36 @@ impl Hittable for Sphere {
         let outward_normal = (p - self.center) / self.radius;
         Some(Hit::new(p, outward_normal, t, ray))
     }
+    fn get_color(&self, hit: &Hit) -> Vec3 {
+        self.material.get_color(hit)
+    }
 }
 
 fn normal_to_color(normal: &Vec3) -> Vec3 {
     Vec3::new(1.0 + normal.x, 1.0 + normal.y, 1.0 + normal.z) * 0.5
 }
 
+struct NormalMaterial;
+impl Material for NormalMaterial {
+    fn get_color(&self, hit: &Hit) -> Vec3 {
+        normal_to_color(&hit.normal)
+    }
+}
+
+struct ConstantColorMaterial {
+    color: Vec3,
+}
+impl Material for ConstantColorMaterial {
+    fn get_color(&self, hit: &Hit) -> Vec3 {
+        self.color
+    }
+}
+
 fn ray_color(ray: &Ray, world: &HittableList) -> Vec3 {
-    let hit = world.hit(ray, 0.0, INFINITY);
-    match hit {
+    let hit_info = world.hit(ray, 0.0, INFINITY);
+    match hit_info {
         None => background(&ray),
-        Some(hit) => normal_to_color(&hit.normal),
+        Some((hit, hittable)) => hittable.get_color(&hit),
     }
 }
 
@@ -199,14 +225,14 @@ impl HittableList {
         self.hittables.push(hittable);
     }
 }
-impl Hittable for HittableList {
-    fn hit(&self, ray: &Ray, t_min: f64, t_max: f64) -> Option<Hit> {
-        let mut closest_hit: Option<Hit> = None;
+impl HittableList {
+    fn hit(&self, ray: &Ray, t_min: f64, t_max: f64) -> Option<(Hit, &Box<dyn Hittable>)> {
+        let mut closest_hit: Option<(Hit, &Box<dyn Hittable>)> = None;
         let closest_dist = t_max;
         for obj in &self.hittables {
             match obj.hit(ray, t_min, closest_dist) {
                 None => continue,
-                Some(hit) => closest_hit = Some(hit),
+                Some(hit) => closest_hit = Some((hit, obj)),
             }
         }
         closest_hit
@@ -284,6 +310,7 @@ fn main() {
     objects.push(Box::new(Sphere {
         center: Vec3::new(0.0, 0.0, -1.0),
         radius: 0.5,
+        material: Box::new(NormalMaterial),
     }));
 
     // Render
