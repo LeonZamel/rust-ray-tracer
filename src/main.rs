@@ -1,7 +1,9 @@
+use rand::Rng;
 use std::fs;
 use std::ops;
 
 const INFINITY: f64 = 999999.0;
+const MAX_BOUNCES: i32 = 20;
 
 static ASPECT_RATIO: f64 = 16.0 / 9.0;
 
@@ -35,8 +37,33 @@ impl Vec3 {
     fn unit_vector(self) -> Vec3 {
         self / self.length()
     }
-}
 
+    fn random() -> Vec3 {
+        Vec3::new(
+            rand::thread_rng().gen::<f64>() * 2.0 - 1.0,
+            rand::thread_rng().gen::<f64>() * 2.0 - 1.0,
+            rand::thread_rng().gen::<f64>() * 2.0 - 1.0,
+        )
+    }
+
+    fn random_in_unit_sphere() -> Vec3 {
+        loop {
+            let vec = Vec3::random();
+            if vec.length_squared() <= 1.0 {
+                return vec;
+            }
+        }
+    }
+
+    fn random_unit_vector() -> Vec3 {
+        Vec3::random_in_unit_sphere().unit_vector()
+    }
+
+    fn near_zero(&self) -> bool {
+        let lambda = 1e-8;
+        self.x.abs() < lambda && self.y.abs() < lambda && self.z.abs() < lambda
+    }
+}
 impl ops::Add<Vec3> for Vec3 {
     type Output = Self;
     fn add(self, _rhs: Vec3) -> Vec3 {
@@ -54,6 +81,16 @@ impl ops::Sub<Vec3> for Vec3 {
             x: self.x - _rhs.x,
             y: self.y - _rhs.y,
             z: self.z - _rhs.z,
+        }
+    }
+}
+impl ops::Mul<Vec3> for Vec3 {
+    type Output = Self;
+    fn mul(self, _rhs: Vec3) -> Vec3 {
+        Vec3 {
+            x: self.x * _rhs.x,
+            y: self.y * _rhs.y,
+            z: self.z * _rhs.z,
         }
     }
 }
@@ -93,7 +130,6 @@ struct Ray {
     origin: Vec3,
     direction: Vec3,
 }
-
 impl Ray {
     fn at(&self, t: f64) -> Vec3 {
         self.origin + self.direction * t
@@ -101,24 +137,33 @@ impl Ray {
 }
 
 trait Material {
-    fn get_color(&self, hit: &Hit) -> Vec3;
+    fn get_color(&self, hit: &Hit, ray_color: &dyn Fn(&Ray) -> Vec3) -> Vec3;
+    // fn scatter(&self, hit: &Hit) -> Vec3; // TODO: Use this approach?
 }
 
-struct Hit {
+struct Hit<'a> {
     p: Vec3,
     normal: Vec3, // Always points opposite to hit ray
     t: f64,
     front_face: bool, // If the face that was hit was the front, i.e. outward face
+    material: &'a Box<dyn Material>,
 }
 
-impl Hit {
-    fn new(p: Vec3, outward_normal: Vec3, t: f64, ray: &Ray) -> Hit {
+impl<'a> Hit<'a> {
+    fn new(
+        p: Vec3,
+        outward_normal: Vec3,
+        t: f64,
+        ray: &Ray,
+        material: &'a Box<dyn Material>,
+    ) -> Hit<'a> {
         let (front_face, normal) = Hit::to_face_normal(ray, outward_normal);
         Hit {
             p,
             normal,
             t,
             front_face,
+            material,
         }
     }
     fn to_face_normal(ray: &Ray, outward_normal: Vec3) -> (bool, Vec3) {
@@ -136,7 +181,6 @@ impl Hit {
 
 trait Hittable {
     fn hit(&self, ray: &Ray, t_min: f64, t_max: f64) -> Option<Hit>;
-    fn get_color(&self, hit: &Hit) -> Vec3;
 }
 
 struct Sphere {
@@ -168,10 +212,7 @@ impl Hittable for Sphere {
         let t = root;
         let p = ray.at(root);
         let outward_normal = (p - self.center) / self.radius;
-        Some(Hit::new(p, outward_normal, t, ray))
-    }
-    fn get_color(&self, hit: &Hit) -> Vec3 {
-        self.material.get_color(hit)
+        Some(Hit::new(p, outward_normal, t, ray, &self.material))
     }
 }
 
@@ -181,7 +222,7 @@ fn normal_to_color(normal: &Vec3) -> Vec3 {
 
 struct NormalMaterial;
 impl Material for NormalMaterial {
-    fn get_color(&self, hit: &Hit) -> Vec3 {
+    fn get_color(&self, hit: &Hit, ray_color: &dyn Fn(&Ray) -> Vec3) -> Vec3 {
         normal_to_color(&hit.normal)
     }
 }
@@ -190,24 +231,49 @@ struct ConstantColorMaterial {
     color: Vec3,
 }
 impl Material for ConstantColorMaterial {
-    fn get_color(&self, hit: &Hit) -> Vec3 {
+    fn get_color(&self, hit: &Hit, ray_color: &dyn Fn(&Ray) -> Vec3) -> Vec3 {
         self.color
     }
 }
 
-fn ray_color(ray: &Ray, world: &HittableList) -> Vec3 {
-    let hit_info = world.hit(ray, 0.0, INFINITY);
-    match hit_info {
+struct LambertianMaterial {
+    albedo: Vec3,
+}
+impl Material for LambertianMaterial {
+    fn get_color(&self, hit: &Hit, ray_color: &dyn Fn(&Ray) -> Vec3) -> Vec3 {
+        let scatter_direction = hit.normal + Vec3::random_unit_vector();
+        let scatter_direction = {
+            if scatter_direction.near_zero() {
+                hit.normal
+            } else {
+                scatter_direction
+            }
+        };
+        self.albedo
+            * ray_color(&Ray {
+                origin: hit.p,
+                direction: scatter_direction,
+            })
+    }
+}
+
+fn ray_color(ray: &Ray, world: &HittableList, bounces_left: i32) -> Vec3 {
+    if bounces_left == 0 {
+        return Vec3::new(0.0, 0.0, 0.0);
+    }
+    match world.hit(ray, 0.001, INFINITY) {
         None => background(&ray),
-        Some((hit, hittable)) => hittable.get_color(&hit),
+        Some(hit) => hit.material.get_color(&hit, &|ray: &Ray| -> Vec3 {
+            ray_color(ray, world, bounces_left - 1)
+        }),
     }
 }
 
 fn background(ray: &Ray) -> Vec3 {
     let unit_dir = ray.direction.unit_vector();
     Vec3 {
-        x: unit_dir.y as f64 / 2.0 + 0.5,
-        y: unit_dir.y as f64 / 2.0 + 0.5,
+        x: 1.0 - ((unit_dir.y + 1.0) / 4.0),
+        y: 1.0 - ((unit_dir.y + 1.0) / 8.0),
         z: 1.0,
     }
 }
@@ -226,13 +292,16 @@ impl HittableList {
     }
 }
 impl HittableList {
-    fn hit(&self, ray: &Ray, t_min: f64, t_max: f64) -> Option<(Hit, &Box<dyn Hittable>)> {
-        let mut closest_hit: Option<(Hit, &Box<dyn Hittable>)> = None;
-        let closest_dist = t_max;
+    fn hit(&self, ray: &Ray, t_min: f64, t_max: f64) -> Option<Hit> {
+        let mut closest_hit: Option<Hit> = None;
+        let mut closest_dist = t_max;
         for obj in &self.hittables {
             match obj.hit(ray, t_min, closest_dist) {
                 None => continue,
-                Some(hit) => closest_hit = Some((hit, obj)),
+                Some(hit) => {
+                    closest_dist = hit.t.clone();
+                    closest_hit = Some(hit);
+                }
             }
         }
         closest_hit
@@ -244,6 +313,8 @@ struct Camera {
     viewport_height: f64,
     viewport_width: f64,
     focal_length: f64,
+
+    // TODO: This should be hidden/private
     horizontal: Vec3,
     vertical: Vec3,
     origin: Vec3,
@@ -310,7 +381,16 @@ fn main() {
     objects.push(Box::new(Sphere {
         center: Vec3::new(0.0, 0.0, -1.0),
         radius: 0.5,
-        material: Box::new(NormalMaterial),
+        material: Box::new(LambertianMaterial {
+            albedo: Vec3::new(0.2, 0.2, 0.2),
+        }),
+    }));
+    objects.push(Box::new(Sphere {
+        center: Vec3::new(0.0, -100.5, -1.0),
+        radius: 100.0,
+        material: Box::new(LambertianMaterial {
+            albedo: Vec3::new(0.2, 0.2, 0.2),
+        }),
     }));
 
     // Render
@@ -319,7 +399,7 @@ fn main() {
             let horizontal_frac = i as f64 / (IMAGE_WIDTH as f64 - 1.0);
             let vertical_frac = j as f64 / (IMAGE_HEIGHT as f64 - 1.0);
             let ray = camera.get_ray(horizontal_frac, vertical_frac);
-            image[j][i] = ray_color(&ray, &objects);
+            image[j][i] = ray_color(&ray, &objects, MAX_BOUNCES);
         }
     }
 
@@ -331,13 +411,17 @@ fn main() {
         + &IMAGE_HEIGHT.to_string()
         + "\n255\n";
 
-    for row in image {
-        for vec in row {
-            data += &(((vec.x * 255.0) as i32).to_string()
+    for j in (0..IMAGE_HEIGHT).rev() {
+        for i in 0..IMAGE_WIDTH {
+            let c = image[j][i];
+            let r = c.x.sqrt();
+            let g = c.y.sqrt();
+            let b = c.z.sqrt();
+            data += &(((r * 255.0) as i32).to_string()
                 + " "
-                + &((vec.y * 255.0) as i32).to_string()
+                + &((g * 255.0) as i32).to_string()
                 + " "
-                + &((vec.z * 255.0) as i32).to_string()
+                + &((b * 255.0) as i32).to_string()
                 + "\n")
         }
     }
