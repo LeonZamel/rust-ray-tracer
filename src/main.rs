@@ -4,6 +4,7 @@ use std::ops;
 
 const INFINITY: f64 = 999999.0;
 const MAX_BOUNCES: i32 = 20;
+const SAMPLES_PER_PIXEL: i32 = 5;
 
 static ASPECT_RATIO: f64 = 16.0 / 9.0;
 
@@ -63,11 +64,24 @@ impl Vec3 {
         let lambda = 1e-8;
         self.x.abs() < lambda && self.y.abs() < lambda && self.z.abs() < lambda
     }
+
+    fn reflect(self, normal: Vec3) -> Vec3 {
+        self - normal * 2.0 * self.dot(&normal)
+    }
 }
 impl ops::Add<Vec3> for Vec3 {
     type Output = Self;
     fn add(self, _rhs: Vec3) -> Vec3 {
         Vec3 {
+            x: self.x + _rhs.x,
+            y: self.y + _rhs.y,
+            z: self.z + _rhs.z,
+        }
+    }
+}
+impl ops::AddAssign for Vec3 {
+    fn add_assign(&mut self, _rhs: Vec3) {
+        *self = Vec3 {
             x: self.x + _rhs.x,
             y: self.y + _rhs.y,
             z: self.z + _rhs.z,
@@ -137,7 +151,7 @@ impl Ray {
 }
 
 trait Material {
-    fn get_color(&self, hit: &Hit, ray_color: &dyn Fn(&Ray) -> Vec3) -> Vec3;
+    fn get_color(&self, ray: &Ray, hit: &Hit, ray_color: &dyn Fn(&Ray) -> Vec3) -> Vec3;
     // fn scatter(&self, hit: &Hit) -> Vec3; // TODO: Use this approach?
 }
 
@@ -222,7 +236,7 @@ fn normal_to_color(normal: &Vec3) -> Vec3 {
 
 struct NormalMaterial;
 impl Material for NormalMaterial {
-    fn get_color(&self, hit: &Hit, ray_color: &dyn Fn(&Ray) -> Vec3) -> Vec3 {
+    fn get_color(&self, ray: &Ray, hit: &Hit, ray_color: &dyn Fn(&Ray) -> Vec3) -> Vec3 {
         normal_to_color(&hit.normal)
     }
 }
@@ -231,7 +245,7 @@ struct ConstantColorMaterial {
     color: Vec3,
 }
 impl Material for ConstantColorMaterial {
-    fn get_color(&self, hit: &Hit, ray_color: &dyn Fn(&Ray) -> Vec3) -> Vec3 {
+    fn get_color(&self, ray: &Ray, hit: &Hit, ray_color: &dyn Fn(&Ray) -> Vec3) -> Vec3 {
         self.color
     }
 }
@@ -240,7 +254,7 @@ struct LambertianMaterial {
     albedo: Vec3,
 }
 impl Material for LambertianMaterial {
-    fn get_color(&self, hit: &Hit, ray_color: &dyn Fn(&Ray) -> Vec3) -> Vec3 {
+    fn get_color(&self, ray: &Ray, hit: &Hit, ray_color: &dyn Fn(&Ray) -> Vec3) -> Vec3 {
         let scatter_direction = hit.normal + Vec3::random_unit_vector();
         let scatter_direction = {
             if scatter_direction.near_zero() {
@@ -256,6 +270,21 @@ impl Material for LambertianMaterial {
             })
     }
 }
+struct MetalMaterial {
+    albedo: Vec3,
+    fuzz: f64,
+}
+impl Material for MetalMaterial {
+    fn get_color(&self, ray: &Ray, hit: &Hit, ray_color: &dyn Fn(&Ray) -> Vec3) -> Vec3 {
+        let reflected = ray.direction.unit_vector().reflect(hit.normal)
+            + Vec3::random_in_unit_sphere() * self.fuzz;
+        self.albedo
+            * ray_color(&Ray {
+                origin: hit.p,
+                direction: reflected,
+            })
+    }
+}
 
 fn ray_color(ray: &Ray, world: &HittableList, bounces_left: i32) -> Vec3 {
     if bounces_left == 0 {
@@ -263,7 +292,7 @@ fn ray_color(ray: &Ray, world: &HittableList, bounces_left: i32) -> Vec3 {
     }
     match world.hit(ray, 0.001, INFINITY) {
         None => background(&ray),
-        Some(hit) => hit.material.get_color(&hit, &|ray: &Ray| -> Vec3 {
+        Some(hit) => hit.material.get_color(ray, &hit, &|ray: &Ray| -> Vec3 {
             ray_color(ray, world, bounces_left - 1)
         }),
     }
@@ -382,24 +411,44 @@ fn main() {
         center: Vec3::new(0.0, 0.0, -1.0),
         radius: 0.5,
         material: Box::new(LambertianMaterial {
-            albedo: Vec3::new(0.2, 0.2, 0.2),
+            albedo: Vec3::new(0.2, 0.8, 0.2),
         }),
     }));
     objects.push(Box::new(Sphere {
         center: Vec3::new(0.0, -100.5, -1.0),
         radius: 100.0,
         material: Box::new(LambertianMaterial {
-            albedo: Vec3::new(0.2, 0.2, 0.2),
+            albedo: Vec3::new(0.7, 0.7, 0.1),
+        }),
+    }));
+    objects.push(Box::new(Sphere {
+        center: Vec3::new(-1.0, 0.0, -1.0),
+        radius: 0.5,
+        material: Box::new(MetalMaterial {
+            albedo: Vec3::new(0.8, 0.2, 0.2),
+            fuzz: 0.1,
+        }),
+    }));
+    objects.push(Box::new(Sphere {
+        center: Vec3::new(1.0, 0.0, -1.0),
+        radius: 0.5,
+        material: Box::new(MetalMaterial {
+            albedo: Vec3::new(0.5, 0.2, 1.0),
+            fuzz: 0.4,
         }),
     }));
 
     // Render
     for j in (0..IMAGE_HEIGHT).rev() {
         for i in 0..IMAGE_WIDTH {
-            let horizontal_frac = i as f64 / (IMAGE_WIDTH as f64 - 1.0);
-            let vertical_frac = j as f64 / (IMAGE_HEIGHT as f64 - 1.0);
-            let ray = camera.get_ray(horizontal_frac, vertical_frac);
-            image[j][i] = ray_color(&ray, &objects, MAX_BOUNCES);
+            for _ in 0..SAMPLES_PER_PIXEL {
+                let horizontal_frac =
+                    (i as f64 + rand::thread_rng().gen::<f64>()) / (IMAGE_WIDTH as f64 - 1.0);
+                let vertical_frac =
+                    (j as f64 + rand::thread_rng().gen::<f64>()) / (IMAGE_HEIGHT as f64 - 1.0);
+                let ray = camera.get_ray(horizontal_frac, vertical_frac);
+                image[j][i] += ray_color(&ray, &objects, MAX_BOUNCES);
+            }
         }
     }
 
@@ -413,7 +462,7 @@ fn main() {
 
     for j in (0..IMAGE_HEIGHT).rev() {
         for i in 0..IMAGE_WIDTH {
-            let c = image[j][i];
+            let c = image[j][i] / (SAMPLES_PER_PIXEL as f64);
             let r = c.x.sqrt();
             let g = c.y.sqrt();
             let b = c.z.sqrt();
