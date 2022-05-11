@@ -205,7 +205,7 @@ struct Sphere {
 
 impl Hittable for Sphere {
     fn hit(&self, ray: &Ray, t_min: f64, t_max: f64) -> Option<Hit> {
-        let oc = ray.origin.clone() - self.center.clone();
+        let oc = ray.origin - self.center;
         let a = ray.direction.length_squared();
         let half_b = oc.dot(&ray.direction);
         let c = oc.length_squared() - self.radius * self.radius;
@@ -328,7 +328,7 @@ impl HittableList {
             match obj.hit(ray, t_min, closest_dist) {
                 None => continue,
                 Some(hit) => {
-                    closest_dist = hit.t.clone();
+                    closest_dist = hit.t;
                     closest_hit = Some(hit);
                 }
             }
