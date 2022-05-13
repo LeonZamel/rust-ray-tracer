@@ -1,17 +1,18 @@
 mod camera;
 mod hittable;
 mod material;
+mod materials;
 mod ray;
 mod sphere;
+mod util;
 mod vec3;
 
 use rand::Rng;
 use std::fs;
 
 use camera::Camera;
-use hittable::Hit;
 use hittable::Hittable;
-use material::Material;
+use hittable::HittableList;
 use ray::Ray;
 use sphere::Sphere;
 use vec3::Vec3;
@@ -24,62 +25,6 @@ static ASPECT_RATIO: f64 = 16.0 / 9.0;
 
 static IMAGE_HEIGHT: usize = 400;
 static IMAGE_WIDTH: usize = (IMAGE_HEIGHT as f64 * ASPECT_RATIO) as usize;
-
-fn normal_to_color(normal: &Vec3) -> Vec3 {
-    Vec3::new(1.0 + normal.x, 1.0 + normal.y, 1.0 + normal.z) * 0.5
-}
-
-struct NormalMaterial;
-impl Material for NormalMaterial {
-    fn get_color(&self, _ray: &Ray, hit: &Hit, _ray_color: &dyn Fn(&Ray) -> Vec3) -> Vec3 {
-        normal_to_color(&hit.normal)
-    }
-}
-
-struct ConstantColorMaterial {
-    color: Vec3,
-}
-impl Material for ConstantColorMaterial {
-    fn get_color(&self, _ray: &Ray, _hit: &Hit, _ray_color: &dyn Fn(&Ray) -> Vec3) -> Vec3 {
-        self.color
-    }
-}
-
-struct LambertianMaterial {
-    albedo: Vec3,
-}
-impl Material for LambertianMaterial {
-    fn get_color(&self, _ray: &Ray, hit: &Hit, ray_color: &dyn Fn(&Ray) -> Vec3) -> Vec3 {
-        let scatter_direction = hit.normal + Vec3::random_unit_vector();
-        let scatter_direction = {
-            if scatter_direction.near_zero() {
-                hit.normal
-            } else {
-                scatter_direction
-            }
-        };
-        self.albedo
-            * ray_color(&Ray {
-                origin: hit.p,
-                direction: scatter_direction,
-            })
-    }
-}
-struct MetalMaterial {
-    albedo: Vec3,
-    fuzz: f64,
-}
-impl Material for MetalMaterial {
-    fn get_color(&self, ray: &Ray, hit: &Hit, ray_color: &dyn Fn(&Ray) -> Vec3) -> Vec3 {
-        let reflected = ray.direction.unit_vector().reflect(hit.normal)
-            + Vec3::random_in_unit_sphere() * self.fuzz;
-        self.albedo
-            * ray_color(&Ray {
-                origin: hit.p,
-                direction: reflected,
-            })
-    }
-}
 
 fn ray_color(ray: &Ray, world: &HittableList, bounces_left: i32) -> Vec3 {
     if bounces_left == 0 {
@@ -99,36 +44,6 @@ fn background(ray: &Ray) -> Vec3 {
         x: 1.0 - ((unit_dir.y + 1.0) / 4.0),
         y: 1.0 - ((unit_dir.y + 1.0) / 8.0),
         z: 1.0,
-    }
-}
-
-struct HittableList {
-    hittables: Vec<Box<dyn Hittable>>,
-}
-impl HittableList {
-    fn new() -> HittableList {
-        HittableList {
-            hittables: Vec::new(),
-        }
-    }
-    fn push(&mut self, hittable: Box<dyn Hittable>) {
-        self.hittables.push(hittable);
-    }
-}
-impl HittableList {
-    fn hit(&self, ray: &Ray, t_min: f64, t_max: f64) -> Option<Hit> {
-        let mut closest_hit: Option<Hit> = None;
-        let mut closest_dist = t_max;
-        for obj in &self.hittables {
-            match obj.hit(ray, t_min, closest_dist) {
-                None => continue,
-                Some(hit) => {
-                    closest_dist = hit.t;
-                    closest_hit = Some(hit);
-                }
-            }
-        }
-        closest_hit
     }
 }
 
@@ -160,21 +75,21 @@ fn main() {
     objects.push(Box::new(Sphere {
         center: Vec3::new(0.0, 0.0, -1.0),
         radius: 0.5,
-        material: Box::new(LambertianMaterial {
+        material: Box::new(materials::LambertianMaterial {
             albedo: Vec3::new(0.2, 0.8, 0.2),
         }),
     }));
     objects.push(Box::new(Sphere {
         center: Vec3::new(0.0, -100.5, -1.0),
         radius: 100.0,
-        material: Box::new(LambertianMaterial {
+        material: Box::new(materials::LambertianMaterial {
             albedo: Vec3::new(0.7, 0.7, 0.1),
         }),
     }));
     objects.push(Box::new(Sphere {
         center: Vec3::new(-1.0, 0.0, -1.0),
         radius: 0.5,
-        material: Box::new(MetalMaterial {
+        material: Box::new(materials::MetalMaterial {
             albedo: Vec3::new(0.8, 0.2, 0.2),
             fuzz: 0.1,
         }),
@@ -182,7 +97,7 @@ fn main() {
     objects.push(Box::new(Sphere {
         center: Vec3::new(1.0, 0.0, -1.0),
         radius: 0.5,
-        material: Box::new(MetalMaterial {
+        material: Box::new(materials::MetalMaterial {
             albedo: Vec3::new(0.5, 0.2, 1.0),
             fuzz: 0.4,
         }),

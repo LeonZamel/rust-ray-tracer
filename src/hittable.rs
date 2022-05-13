@@ -43,3 +43,33 @@ impl<'a> Hit<'a> {
 pub trait Hittable {
     fn hit(&self, ray: &Ray, t_min: f64, t_max: f64) -> Option<Hit>;
 }
+
+pub struct HittableList {
+    hittables: Vec<Box<dyn Hittable>>,
+}
+impl HittableList {
+    pub fn new() -> HittableList {
+        HittableList {
+            hittables: Vec::new(),
+        }
+    }
+    pub fn push(&mut self, hittable: Box<dyn Hittable>) {
+        self.hittables.push(hittable);
+    }
+}
+impl Hittable for HittableList {
+    fn hit(&self, ray: &Ray, t_min: f64, t_max: f64) -> Option<Hit> {
+        let mut closest_hit: Option<Hit> = None;
+        let mut closest_dist = t_max;
+        for obj in &self.hittables {
+            match obj.hit(ray, t_min, closest_dist) {
+                None => continue,
+                Some(hit) => {
+                    closest_dist = hit.t;
+                    closest_hit = Some(hit);
+                }
+            }
+        }
+        closest_hit
+    }
+}
