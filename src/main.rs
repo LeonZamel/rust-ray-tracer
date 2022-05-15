@@ -75,21 +75,21 @@ fn main() {
     objects.push(Box::new(Sphere {
         center: Vec3::new(0.0, 0.0, -1.0),
         radius: 0.5,
-        material: Box::new(materials::LambertianMaterial {
+        material: Box::new(materials::Lambertian {
             albedo: Vec3::new(0.2, 0.8, 0.2),
         }),
     }));
     objects.push(Box::new(Sphere {
         center: Vec3::new(0.0, -100.5, -1.0),
         radius: 100.0,
-        material: Box::new(materials::LambertianMaterial {
+        material: Box::new(materials::Lambertian {
             albedo: Vec3::new(0.7, 0.7, 0.1),
         }),
     }));
     objects.push(Box::new(Sphere {
         center: Vec3::new(-1.0, 0.0, -1.0),
         radius: 0.5,
-        material: Box::new(materials::MetalMaterial {
+        material: Box::new(materials::Metal {
             albedo: Vec3::new(0.8, 0.2, 0.2),
             fuzz: 0.1,
         }),
@@ -97,10 +97,7 @@ fn main() {
     objects.push(Box::new(Sphere {
         center: Vec3::new(1.0, 0.0, -1.0),
         radius: 0.5,
-        material: Box::new(materials::MetalMaterial {
-            albedo: Vec3::new(0.5, 0.2, 1.0),
-            fuzz: 0.4,
-        }),
+        material: Box::new(materials::Dielectric { ir: 1.5 }),
     }));
 
     // Render
