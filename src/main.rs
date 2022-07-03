@@ -40,22 +40,16 @@ fn ray_color(ray: &Ray, world: &HittableList, bounces_left: i32) -> Vec3 {
 
 fn background(ray: &Ray) -> Vec3 {
     let unit_dir = ray.direction.unit_vector();
+    let brightness: f64 = 1.0;
     Vec3 {
-        x: 1.0 - ((unit_dir.y + 1.0) / 4.0),
-        y: 1.0 - ((unit_dir.y + 1.0) / 8.0),
-        z: 1.0,
+        x: (1.0 - ((unit_dir.y + 1.0) / 4.0)) * brightness,
+        y: (1.0 - ((unit_dir.y + 1.0) / 8.0)) * brightness,
+        z: 1.0 * brightness,
     }
 }
 
 fn main() {
-    let viewport_height: f64 = 2.0;
-    let camera = Camera::new(
-        Vec3::new(0.0, 0.0, 0.0),
-        ASPECT_RATIO,
-        viewport_height,
-        viewport_height * ASPECT_RATIO,
-        1.0,
-    );
+    let camera = Camera::new_with_fov(Vec3::new(0.0, 0.0, 0.0), ASPECT_RATIO, 90.0);
 
     // Init
     let mut image: Vec<Vec<Vec3>> = vec![
