@@ -7,7 +7,7 @@ pub struct Hit<'a> {
     pub normal: Vec3, // Always points opposite to hit ray
     pub t: f64,
     pub front_face: bool, // If the face that was hit was the front, i.e. outward face
-    pub material: &'a Box<dyn Material>,
+    pub material: &'a dyn Material,
 }
 
 impl<'a> Hit<'a> {
@@ -16,7 +16,7 @@ impl<'a> Hit<'a> {
         outward_normal: Vec3,
         t: f64,
         ray: &Ray,
-        material: &'a Box<dyn Material>,
+        material: &'a dyn Material,
     ) -> Hit<'a> {
         let (front_face, normal) = Hit::to_face_normal(ray, outward_normal);
         Hit {
@@ -46,15 +46,24 @@ pub trait Hittable {
 
 pub struct HittableList {
     hittables: Vec<Box<dyn Hittable>>,
+    default_t_min: f64,
+    default_t_max: f64,
 }
 impl HittableList {
-    pub fn new() -> HittableList {
+    pub fn new(default_t_min: f64, default_t_max: f64) -> HittableList {
         HittableList {
             hittables: Vec::new(),
+            default_t_min,
+            default_t_max,
         }
     }
+
     pub fn push(&mut self, hittable: Box<dyn Hittable>) {
         self.hittables.push(hittable);
+    }
+
+    pub fn hit_default(&self, ray: &Ray) -> Option<Hit> {
+        self.hit(ray, self.default_t_min, self.default_t_max)
     }
 }
 impl Hittable for HittableList {

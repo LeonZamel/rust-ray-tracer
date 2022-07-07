@@ -1,4 +1,5 @@
 use crate::hittable::Hit;
+use crate::light::LightInfo;
 use crate::material::Material;
 use crate::ray::Ray;
 use crate::util;
@@ -7,7 +8,13 @@ use rand::Rng;
 
 pub struct NormalMaterial;
 impl Material for NormalMaterial {
-    fn get_color(&self, _ray: &Ray, hit: &Hit, _ray_color: &dyn Fn(&Ray) -> Vec3) -> Vec3 {
+    fn get_color(
+        &self,
+        _ray: &Ray,
+        _light_info: LightInfo,
+        hit: &Hit,
+        _ray_color: &dyn Fn(&Ray) -> Vec3,
+    ) -> Vec3 {
         util::normal_to_color(&hit.normal)
     }
 }
@@ -16,7 +23,13 @@ pub struct ConstantColorMaterial {
     pub color: Vec3,
 }
 impl Material for ConstantColorMaterial {
-    fn get_color(&self, _ray: &Ray, _hit: &Hit, _ray_color: &dyn Fn(&Ray) -> Vec3) -> Vec3 {
+    fn get_color(
+        &self,
+        _ray: &Ray,
+        _light_info: LightInfo,
+        _hit: &Hit,
+        _ray_color: &dyn Fn(&Ray) -> Vec3,
+    ) -> Vec3 {
         self.color
     }
 }
@@ -25,7 +38,13 @@ pub struct Lambertian {
     pub albedo: Vec3,
 }
 impl Material for Lambertian {
-    fn get_color(&self, _ray: &Ray, hit: &Hit, ray_color: &dyn Fn(&Ray) -> Vec3) -> Vec3 {
+    fn get_color(
+        &self,
+        _ray: &Ray,
+        light_info: LightInfo,
+        hit: &Hit,
+        ray_color: &dyn Fn(&Ray) -> Vec3,
+    ) -> Vec3 {
         let scatter_direction = hit.normal + Vec3::random_unit_vector();
         let scatter_direction = {
             if scatter_direction.near_zero() {
@@ -34,11 +53,12 @@ impl Material for Lambertian {
                 scatter_direction
             }
         };
-        self.albedo
-            * ray_color(&Ray {
-                origin: hit.p,
-                direction: scatter_direction,
-            })
+        self.albedo * light_info.color * light_info.direction.dot(&hit.normal).max(0.0)
+            + self.albedo
+                * ray_color(&Ray {
+                    origin: hit.p,
+                    direction: scatter_direction,
+                })
     }
 }
 
@@ -47,14 +67,22 @@ pub struct Metal {
     pub fuzz: f64,
 }
 impl Material for Metal {
-    fn get_color(&self, ray: &Ray, hit: &Hit, ray_color: &dyn Fn(&Ray) -> Vec3) -> Vec3 {
+    fn get_color(
+        &self,
+        ray: &Ray,
+        light_info: LightInfo,
+        hit: &Hit,
+        ray_color: &dyn Fn(&Ray) -> Vec3,
+    ) -> Vec3 {
         let reflected = ray.direction.unit_vector().reflect(hit.normal)
             + Vec3::random_in_unit_sphere() * self.fuzz;
-        self.albedo
-            * ray_color(&Ray {
-                origin: hit.p,
-                direction: reflected,
-            })
+        self.albedo * light_info.color * light_info.direction.dot(&hit.normal).max(0.0)
+            + self.albedo
+                * hit.normal.dot(&hit.normal)
+                * ray_color(&Ray {
+                    origin: hit.p,
+                    direction: reflected,
+                })
     }
 }
 
@@ -62,7 +90,13 @@ pub struct Dielectric {
     pub ir: f64, // Index of Refraction
 }
 impl Material for Dielectric {
-    fn get_color(&self, ray: &Ray, hit: &Hit, ray_color: &dyn Fn(&Ray) -> Vec3) -> Vec3 {
+    fn get_color(
+        &self,
+        ray: &Ray,
+        _light_info: LightInfo,
+        hit: &Hit,
+        ray_color: &dyn Fn(&Ray) -> Vec3,
+    ) -> Vec3 {
         let refraction_ratio = if hit.front_face {
             1.0 / self.ir
         } else {

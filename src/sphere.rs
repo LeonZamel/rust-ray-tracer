@@ -32,6 +32,6 @@ impl Hittable for Sphere {
         let t = root;
         let p = ray.at(root);
         let outward_normal = (p - self.center) / self.radius;
-        Some(Hit::new(p, outward_normal, t, ray, &self.material))
+        Some(Hit::new(p, outward_normal, t, ray, self.material.as_ref()))
     }
 }
