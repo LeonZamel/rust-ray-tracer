@@ -1,8 +1,10 @@
 mod camera;
 mod hittable;
+mod light;
 mod material;
 mod materials;
 mod ray;
+mod scene;
 mod sphere;
 mod util;
 mod vec3;
@@ -13,7 +15,10 @@ use std::fs;
 use camera::Camera;
 use hittable::Hittable;
 use hittable::HittableList;
+use light::Light;
+use light::PointLight;
 use ray::Ray;
+use scene::Scene;
 use sphere::Sphere;
 use vec3::Vec3;
 
@@ -26,15 +31,19 @@ static ASPECT_RATIO: f64 = 16.0 / 9.0;
 static IMAGE_HEIGHT: usize = 400;
 static IMAGE_WIDTH: usize = (IMAGE_HEIGHT as f64 * ASPECT_RATIO) as usize;
 
-fn ray_color(ray: &Ray, world: &HittableList, bounces_left: i32) -> Vec3 {
+fn ray_color(ray: &Ray, world: &Scene, bounces_left: i32) -> Vec3 {
+    // Function that gets the color for a given ray in the scene
     if bounces_left == 0 {
         return Vec3::new(0.0, 0.0, 0.0);
     }
-    match world.hit(ray, 0.001, INFINITY) {
+    match world.objects.hit_default(ray) {
         None => background(&ray),
-        Some(hit) => hit.material.get_color(ray, &hit, &|ray: &Ray| -> Vec3 {
-            ray_color(ray, world, bounces_left - 1)
-        }),
+        Some(hit) => hit.material.get_color(
+            ray,
+            world.light.at(hit.p, world.objects),
+            &hit,
+            &|ray: &Ray| -> Vec3 { ray_color(ray, world, bounces_left - 1) },
+        ),
     }
 }
 
@@ -65,7 +74,7 @@ fn main() {
     ];
 
     // World
-    let mut objects = HittableList::new();
+    let mut objects = HittableList::new(0.001, INFINITY);
     objects.push(Box::new(Sphere {
         center: Vec3::new(0.0, 0.0, -1.0),
         radius: 0.5,
@@ -77,7 +86,7 @@ fn main() {
         center: Vec3::new(0.0, -100.5, -1.0),
         radius: 100.0,
         material: Box::new(materials::Lambertian {
-            albedo: Vec3::new(0.7, 0.7, 0.1),
+            albedo: Vec3::new(0.2, 0.2, 0.1),
         }),
     }));
     objects.push(Box::new(Sphere {
@@ -94,6 +103,16 @@ fn main() {
         material: Box::new(materials::Dielectric { ir: 1.5 }),
     }));
 
+    let scene: Scene = Scene {
+        objects: &objects,
+        light: &PointLight {
+            color: Vec3::new(1.0, 1.0, 1.0),
+            position: Vec3::new(3.0, 10.0, 3.0),
+            intensity: 10.0,
+        },
+        background_fn: background,
+    };
+
     // Render
     for j in (0..IMAGE_HEIGHT).rev() {
         for i in 0..IMAGE_WIDTH {
@@ -103,7 +122,7 @@ fn main() {
                 let vertical_frac =
                     (j as f64 + rand::thread_rng().gen::<f64>()) / (IMAGE_HEIGHT as f64 - 1.0);
                 let ray = camera.get_ray(horizontal_frac, vertical_frac);
-                image[j][i] += ray_color(&ray, &objects, MAX_BOUNCES);
+                image[j][i] += ray_color(&ray, &scene, MAX_BOUNCES);
             }
         }
     }
