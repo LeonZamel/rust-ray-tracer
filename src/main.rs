@@ -49,7 +49,7 @@ fn ray_color(ray: &Ray, world: &Scene, bounces_left: i32) -> Vec3 {
 
 fn background(ray: &Ray) -> Vec3 {
     let unit_dir = ray.direction.unit_vector();
-    let brightness: f64 = 1.0;
+    let brightness: f64 = 0.0;
     Vec3 {
         x: (1.0 - ((unit_dir.y + 1.0) / 4.0)) * brightness,
         y: (1.0 - ((unit_dir.y + 1.0) / 8.0)) * brightness,
