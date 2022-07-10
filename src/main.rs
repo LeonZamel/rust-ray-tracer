@@ -25,6 +25,7 @@ use vec3::Vec3;
 const INFINITY: f64 = 999999.0;
 const MAX_BOUNCES: i32 = 20;
 const SAMPLES_PER_PIXEL: i32 = 100;
+const MAX_LIGHT_VAL: f64 = 5.0;
 
 static ASPECT_RATIO: f64 = 16.0 / 9.0;
 
@@ -36,15 +37,27 @@ fn ray_color(ray: &Ray, world: &Scene, bounces_left: i32) -> Vec3 {
     if bounces_left == 0 {
         return Vec3::new(0.0, 0.0, 0.0);
     }
-    match world.objects.hit_default(ray) {
-        None => background(&ray),
-        Some(hit) => hit.material.get_color(
-            ray,
-            world.light.at(hit.p, world.objects),
-            &hit,
-            &|ray: &Ray| -> Vec3 { ray_color(ray, world, bounces_left - 1) },
-        ),
+    let hit = world.objects.hit_default(ray);
+    match hit {
+        None => world
+            .lights
+            .iter()
+            .map(|light| light.no_hit(&ray))
+            .fold(Vec3::z(), |acc, x| acc + x),
+        Some(hit) => world
+            .lights
+            .iter()
+            .map(|light| {
+                hit.material.get_color(
+                    ray,
+                    light.at(hit.p, &world.objects),
+                    &hit,
+                    &|ray: &Ray| -> Vec3 { ray_color(ray, world, bounces_left - 1) },
+                )
+            })
+            .fold(Vec3::z(), |acc, x| acc + x),
     }
+    .clamp(Vec3::new(MAX_LIGHT_VAL, MAX_LIGHT_VAL, MAX_LIGHT_VAL))
 }
 
 fn background(ray: &Ray) -> Vec3 {
@@ -103,13 +116,16 @@ fn main() {
         material: Box::new(materials::Dielectric { ir: 1.5 }),
     }));
 
+    let mut lights: Vec<Box<dyn Light>> = Vec::new();
+    lights.push(Box::new(PointLight {
+        color: Vec3::new(1.0, 1.0, 1.0),
+        position: Vec3::new(3.0, 5.0, 3.0),
+        intensity: 50.0,
+    }));
+
     let scene: Scene = Scene {
-        objects: &objects,
-        light: &PointLight {
-            color: Vec3::new(1.0, 1.0, 1.0),
-            position: Vec3::new(3.0, 10.0, 3.0),
-            intensity: 10.0,
-        },
+        objects: objects,
+        lights: lights,
         background_fn: background,
     };
 

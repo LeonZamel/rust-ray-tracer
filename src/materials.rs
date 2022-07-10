@@ -107,10 +107,10 @@ impl Material for Dielectric {
         let sin_theta = (1.0 - cos_theta * cos_theta).sqrt();
 
         let cannot_refract = refraction_ratio * sin_theta > 1.0;
-        let direction = if cannot_refract
+        let reflecting = cannot_refract
             || Dielectric::reflectance(cos_theta, refraction_ratio)
-                > rand::thread_rng().gen::<f64>()
-        {
+                > rand::thread_rng().gen::<f64>();
+        let direction = if reflecting {
             unit_dir.reflect(hit.normal)
         } else {
             unit_dir.refract(hit.normal, refraction_ratio)
@@ -118,7 +118,11 @@ impl Material for Dielectric {
         ray_color(&Ray {
             origin: hit.p,
             direction: direction,
-        }) + light_info.color * direction.dot(&light_info.direction).max(0.0)
+        }) + if reflecting && hit.front_face {
+            light_info.color * direction.dot(&light_info.direction).max(0.0)
+        } else {
+            Vec3::z()
+        }
     }
 }
 impl Dielectric {

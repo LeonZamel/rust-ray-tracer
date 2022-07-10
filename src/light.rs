@@ -4,6 +4,7 @@ use crate::vec3::Vec3;
 
 pub trait Light {
     fn at(&self, origin: Vec3, world: &HittableList) -> LightInfo;
+    fn no_hit(&self, ray: &Ray) -> Vec3;
 }
 
 pub struct LightInfo {
@@ -24,13 +25,26 @@ impl Light for PointLight {
             origin: origin,
         }) {
             None => LightInfo {
-                color: (self.color * self.intensity) / (self.position - origin).length(),
+                color: (self.color * self.intensity) / (self.position - origin).length().powf(2.0),
                 direction,
             },
             Some(_) => LightInfo {
-                color: Vec3::new(0.0, 0.0, 0.0),
+                color: Vec3::z(),
                 direction,
             },
         }
+    }
+
+    fn no_hit(&self, ray: &Ray) -> Vec3 {
+        // Gives the light a "body" which looks good in reflections
+        let dist = ((ray.origin
+            + ray.direction * (self.position - ray.origin).dot(&ray.direction))
+            - self.position)
+            .length();
+        (((self.color * self.intensity) / (self.position - ray.origin).length().powf(2.0))
+            / dist.powf(2.0))
+            * (self.position - ray.origin)
+                .unit_vector()
+                .dot(&ray.direction)
     }
 }

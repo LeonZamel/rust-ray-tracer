@@ -13,6 +13,14 @@ impl Vec3 {
         Vec3 { x, y, z }
     }
 
+    pub fn z() -> Vec3 {
+        Vec3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
+    }
+
     pub fn dot(&self, other: &Vec3) -> f64 {
         self.x * other.x + self.y * other.y + self.z * other.z
     }
@@ -71,6 +79,14 @@ impl Vec3 {
         let r_out_perp = (self + normal * cos_theta) * etai_over_etat;
         let r_out_parallel = normal * -(1.0 - r_out_perp.length_squared()).abs().sqrt();
         return r_out_perp + r_out_parallel;
+    }
+
+    pub fn clamp(self, clamp: Vec3) -> Vec3 {
+        Vec3::new(
+            self.x.min(clamp.x),
+            self.y.min(clamp.y),
+            self.z.min(clamp.z),
+        )
     }
 }
 impl ops::Add<Vec3> for Vec3 {
