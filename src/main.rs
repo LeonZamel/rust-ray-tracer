@@ -1,6 +1,7 @@
 mod camera;
 mod hittable;
 mod light;
+mod lights;
 mod material;
 mod materials;
 mod ray;
@@ -16,7 +17,8 @@ use camera::Camera;
 use hittable::Hittable;
 use hittable::HittableList;
 use light::Light;
-use light::PointLight;
+use lights::AmbientLight;
+use lights::PointLight;
 use ray::Ray;
 use scene::Scene;
 use sphere::Sphere;
@@ -25,7 +27,7 @@ use vec3::Vec3;
 const INFINITY: f64 = 999999.0;
 const MAX_BOUNCES: i32 = 20;
 const SAMPLES_PER_PIXEL: i32 = 100;
-const MAX_LIGHT_VAL: f64 = 5.0;
+const MAX_LIGHT_VAL: f64 = 10.0;
 
 static ASPECT_RATIO: f64 = 16.0 / 9.0;
 
@@ -38,36 +40,28 @@ fn ray_color(ray: &Ray, world: &Scene, bounces_left: i32) -> Vec3 {
         return Vec3::new(0.0, 0.0, 0.0);
     }
     let hit = world.objects.hit_default(ray);
+    let next;
     match hit {
         None => world
             .lights
             .iter()
             .map(|light| light.no_hit(&ray))
             .fold(Vec3::z(), |acc, x| acc + x),
-        Some(hit) => world
-            .lights
-            .iter()
-            .map(|light| {
-                hit.material.get_color(
-                    ray,
-                    light.at(hit.p, &world.objects),
-                    &hit,
-                    &|ray: &Ray| -> Vec3 { ray_color(ray, world, bounces_left - 1) },
-                )
+        Some(hit) => {
+            next = match hit.material.scatter(&ray, &hit) {
+                None => Vec3::z(),
+                Some(ray) => ray_color(&ray, world, bounces_left - 1),
+            };
+            world.lights.iter().map(|light| {
+                hit.material
+                    .get_color(ray, light.at(hit.p, &world.objects), &hit, next)
             })
-            .fold(Vec3::z(), |acc, x| acc + x),
+        }
+        .fold(Vec3::z(), |acc, x| acc + x),
     }
+    // Fixes issues when objects become way too bright
+    .ln_1p()
     .clamp(Vec3::new(MAX_LIGHT_VAL, MAX_LIGHT_VAL, MAX_LIGHT_VAL))
-}
-
-fn background(ray: &Ray) -> Vec3 {
-    let unit_dir = ray.direction.unit_vector();
-    let brightness: f64 = 0.0;
-    Vec3 {
-        x: (1.0 - ((unit_dir.y + 1.0) / 4.0)) * brightness,
-        y: (1.0 - ((unit_dir.y + 1.0) / 8.0)) * brightness,
-        z: 1.0 * brightness,
-    }
 }
 
 fn main() {
@@ -123,10 +117,13 @@ fn main() {
         intensity: 50.0,
     }));
 
+    lights.push(Box::new(AmbientLight {
+        color_from_ray: Box::new(|ray| lights::sky_background(0.5, ray)),
+    }));
+
     let scene: Scene = Scene {
         objects: objects,
         lights: lights,
-        background_fn: background,
     };
 
     // Render

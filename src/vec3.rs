@@ -88,6 +88,10 @@ impl Vec3 {
             self.z.min(clamp.z),
         )
     }
+
+    pub fn ln_1p(self) -> Vec3 {
+        Vec3::new(self.x.ln_1p(), self.y.ln_1p(), self.z.ln_1p())
+    }
 }
 impl ops::Add<Vec3> for Vec3 {
     type Output = Self;
