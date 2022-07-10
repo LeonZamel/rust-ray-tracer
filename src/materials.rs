@@ -135,7 +135,7 @@ impl Material for Dielectric {
         };
         Option::from(Ray {
             origin: hit.p,
-            direction: direction,
+            direction,
         })
     }
 }

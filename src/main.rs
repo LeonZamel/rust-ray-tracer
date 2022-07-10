@@ -27,17 +27,17 @@ use vec3::Vec3;
 const INFINITY: f64 = 999999.0;
 const MAX_BOUNCES: i32 = 20;
 const SAMPLES_PER_PIXEL: i32 = 100;
-const MAX_LIGHT_VAL: f64 = 10.0;
+const MAX_LIGHT_VAL: f64 = 2.0;
 
 static ASPECT_RATIO: f64 = 16.0 / 9.0;
 
-static IMAGE_HEIGHT: usize = 400;
+static IMAGE_HEIGHT: usize = 1000;
 static IMAGE_WIDTH: usize = (IMAGE_HEIGHT as f64 * ASPECT_RATIO) as usize;
 
-fn ray_color(ray: &Ray, world: &Scene, bounces_left: i32) -> Vec3 {
-    // Function that gets the color for a given ray in the scene
+fn ray_color_per_light(ray: &Ray, world: &Scene, bounces_left: i32) -> Vec<Vec3> {
+    // Function that gets the color for a given ray in the scene for every light source
     if bounces_left == 0 {
-        return Vec3::new(0.0, 0.0, 0.0);
+        return world.lights.iter().map(|_| Vec3::z()).collect();
     }
     let hit = world.objects.hit_default(ray);
     let next;
@@ -46,26 +46,39 @@ fn ray_color(ray: &Ray, world: &Scene, bounces_left: i32) -> Vec3 {
             .lights
             .iter()
             .map(|light| light.no_hit(&ray))
-            .fold(Vec3::z(), |acc, x| acc + x),
+            .collect(),
         Some(hit) => {
-            next = match hit.material.scatter(&ray, &hit) {
-                None => Vec3::z(),
-                Some(ray) => ray_color(&ray, world, bounces_left - 1),
-            };
-            world.lights.iter().map(|light| {
-                hit.material
-                    .get_color(ray, light.at(hit.p, &world.objects), &hit, next)
-            })
+            next = hit.material.scatter(&ray, &hit);
+            match next {
+                None => world.lights.iter().map(|_| Vec3::z()).collect(),
+                Some(next_ray) => ray_color_per_light(&next_ray, world, bounces_left - 1)
+                    .iter()
+                    .zip(world.lights.iter())
+                    .map(|(next_color, light)| {
+                        hit.material.get_color(
+                            &ray,
+                            light.at(hit.p, &world.objects),
+                            &hit,
+                            *next_color,
+                        )
+                    })
+                    .collect(),
+            }
         }
-        .fold(Vec3::z(), |acc, x| acc + x),
     }
-    // Fixes issues when objects become way too bright
-    .ln_1p()
-    .clamp(Vec3::new(MAX_LIGHT_VAL, MAX_LIGHT_VAL, MAX_LIGHT_VAL))
+}
+
+fn ray_color(ray: &Ray, world: &Scene, bounces_left: i32) -> Vec3 {
+    ray_color_per_light(ray, world, bounces_left)
+        .iter()
+        .fold(Vec3::z(), |acc, x| acc + *x)
+        // Fixes issues when objects become too bright
+        .clamp(Vec3::new(MAX_LIGHT_VAL, MAX_LIGHT_VAL, MAX_LIGHT_VAL))
+        .ln_1p()
 }
 
 fn main() {
-    let camera = Camera::new_with_fov(Vec3::new(0.0, 0.0, 0.0), ASPECT_RATIO, 90.0);
+    let camera = Camera::new_with_fov(Vec3::new(0.5, 0.0, 0.5), ASPECT_RATIO, 90.0);
 
     // Init
     let mut image: Vec<Vec<Vec3>> = vec![
@@ -83,7 +96,7 @@ fn main() {
     // World
     let mut objects = HittableList::new(0.001, INFINITY);
     objects.push(Box::new(Sphere {
-        center: Vec3::new(0.0, 0.0, -1.0),
+        center: Vec3::new(1.0, 0.0, -1.0),
         radius: 0.5,
         material: Box::new(materials::Lambertian {
             albedo: Vec3::new(0.2, 0.8, 0.2),
@@ -101,11 +114,21 @@ fn main() {
         radius: 0.5,
         material: Box::new(materials::Metal {
             albedo: Vec3::new(0.8, 0.2, 0.2),
-            fuzz: 0.1,
+            fuzz: 0.02,
         }),
     }));
     objects.push(Box::new(Sphere {
-        center: Vec3::new(1.0, 0.0, -1.0),
+        center: Vec3::new(0.0, 0.0, -1.0),
+        radius: 0.5,
+        material: Box::new(materials::Dielectric { ir: 1.5 }),
+    }));
+    objects.push(Box::new(Sphere {
+        center: Vec3::new(0.0, 0.0, -1.0),
+        radius: -0.45,
+        material: Box::new(materials::Dielectric { ir: 1.5 }),
+    }));
+    objects.push(Box::new(Sphere {
+        center: Vec3::new(2.0, 0.0, -1.0),
         radius: 0.5,
         material: Box::new(materials::Dielectric { ir: 1.5 }),
     }));
@@ -114,11 +137,11 @@ fn main() {
     lights.push(Box::new(PointLight {
         color: Vec3::new(1.0, 1.0, 1.0),
         position: Vec3::new(3.0, 5.0, 3.0),
-        intensity: 50.0,
+        intensity: 20.0,
     }));
 
     lights.push(Box::new(AmbientLight {
-        color_from_ray: Box::new(|ray| lights::sky_background(0.5, ray)),
+        color_from_ray: Box::new(|ray| lights::sky_background(1.0, ray)),
     }));
 
     let scene: Scene = Scene {
