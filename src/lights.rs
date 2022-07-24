@@ -10,14 +10,19 @@ pub struct PointLight {
     pub intensity: f64,
 }
 impl Light for PointLight {
-    fn at(&self, origin: Vec3, world: &HittableList) -> LightInfo {
+    fn falloff(&self, dist: f64) -> f64 {
+        1.0 / dist.powf(2.0)
+    }
+
+    fn at(&self, origin: Vec3, world: &HittableList, dist_so_far: f64) -> LightInfo {
         let direction = (self.position - origin).unit_vector();
         match world.hit_default(&Ray {
             direction,
             origin: origin,
         }) {
             None => LightInfo {
-                color: (self.color * self.intensity) / (self.position - origin).length().powf(2.0),
+                color: (self.color * self.intensity)
+                    * self.falloff((self.position - origin).length() + dist_so_far),
                 direction,
             },
             Some(_) => LightInfo {
@@ -27,7 +32,7 @@ impl Light for PointLight {
         }
     }
 
-    fn no_hit(&self, ray: &Ray) -> Vec3 {
+    fn no_hit(&self, ray: &Ray, dist_so_far: f64) -> Vec3 {
         // Gives the light a "body" which looks good in reflections
         let dist = ((ray.origin
             + ray.direction * (self.position - ray.origin).dot(&ray.direction))
@@ -45,13 +50,18 @@ pub struct AmbientLight {
     pub color_from_ray: Box<dyn Fn(&Ray) -> Vec3>,
 }
 impl Light for AmbientLight {
-    fn at(&self, _origin: Vec3, _world: &HittableList) -> LightInfo {
+    fn falloff(&self, _dist: f64) -> f64 {
+        1.0
+    }
+
+    fn at(&self, _origin: Vec3, _world: &HittableList, _dist_so_far: f64) -> LightInfo {
         LightInfo {
             color: Vec3::z(),
             direction: Vec3::z(),
         }
     }
-    fn no_hit(&self, ray: &Ray) -> Vec3 {
+
+    fn no_hit(&self, ray: &Ray, dist_so_far: f64) -> Vec3 {
         (self.color_from_ray)(ray)
     }
 }

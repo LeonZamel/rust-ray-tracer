@@ -31,10 +31,10 @@ const MAX_LIGHT_VAL: f64 = 2.0;
 
 static ASPECT_RATIO: f64 = 16.0 / 9.0;
 
-static IMAGE_HEIGHT: usize = 1000;
+static IMAGE_HEIGHT: usize = 400;
 static IMAGE_WIDTH: usize = (IMAGE_HEIGHT as f64 * ASPECT_RATIO) as usize;
 
-fn ray_color_per_light(ray: &Ray, world: &Scene, bounces_left: i32) -> Vec<Vec3> {
+fn ray_color_per_light(ray: &Ray, world: &Scene, bounces_left: i32, dist_so_far: f64) -> Vec<Vec3> {
     // Function that gets the color for a given ray in the scene for every light source
     if bounces_left == 0 {
         return world.lights.iter().map(|_| Vec3::z()).collect();
@@ -45,31 +45,36 @@ fn ray_color_per_light(ray: &Ray, world: &Scene, bounces_left: i32) -> Vec<Vec3>
         None => world
             .lights
             .iter()
-            .map(|light| light.no_hit(&ray))
+            .map(|light| light.no_hit(&ray, dist_so_far))
             .collect(),
         Some(hit) => {
             next = hit.material.scatter(&ray, &hit);
             match next {
                 None => world.lights.iter().map(|_| Vec3::z()).collect(),
-                Some(next_ray) => ray_color_per_light(&next_ray, world, bounces_left - 1)
-                    .iter()
-                    .zip(world.lights.iter())
-                    .map(|(next_color, light)| {
-                        hit.material.get_color(
-                            &ray,
-                            light.at(hit.p, &world.objects),
-                            &hit,
-                            *next_color,
-                        )
-                    })
-                    .collect(),
+                Some(next_ray) => ray_color_per_light(
+                    &next_ray,
+                    world,
+                    bounces_left - 1,
+                    dist_so_far + (hit.p - ray.origin).length(),
+                )
+                .iter()
+                .zip(world.lights.iter())
+                .map(|(next_color, light)| {
+                    hit.material.get_color(
+                        &ray,
+                        light.at(hit.p, &world.objects, dist_so_far),
+                        &hit,
+                        *next_color,
+                    )
+                })
+                .collect(),
             }
         }
     }
 }
 
 fn ray_color(ray: &Ray, world: &Scene, bounces_left: i32) -> Vec3 {
-    ray_color_per_light(ray, world, bounces_left)
+    ray_color_per_light(ray, world, bounces_left, 0.0)
         .iter()
         .fold(Vec3::z(), |acc, x| acc + *x)
         // Fixes issues when objects become too bright
