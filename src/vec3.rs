@@ -92,6 +92,14 @@ impl Vec3 {
     pub fn ln_1p(self) -> Vec3 {
         Vec3::new(self.x.ln_1p(), self.y.ln_1p(), self.z.ln_1p())
     }
+
+    pub fn cross(self, other: &Vec3) -> Vec3 {
+        Vec3::new(
+            self.y * other.z - self.z * other.y,
+            -(self.x * other.z - self.z * other.x),
+            self.x * other.y - self.y * other.x,
+        )
+    }
 }
 impl ops::Add<Vec3> for Vec3 {
     type Output = Self;

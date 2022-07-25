@@ -7,6 +7,7 @@ mod materials;
 mod ray;
 mod scene;
 mod sphere;
+mod triangle;
 mod util;
 mod vec3;
 
