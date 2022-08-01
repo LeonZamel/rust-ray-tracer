@@ -23,11 +23,12 @@ use lights::PointLight;
 use ray::Ray;
 use scene::Scene;
 use sphere::Sphere;
+use triangle::Triangle;
 use vec3::Vec3;
 
 const INFINITY: f64 = 999999.0;
 const MAX_BOUNCES: i32 = 20;
-const SAMPLES_PER_PIXEL: i32 = 100;
+const SAMPLES_PER_PIXEL: i32 = 10;
 const MAX_LIGHT_VAL: f64 = 2.0;
 
 static ASPECT_RATIO: f64 = 16.0 / 9.0;
@@ -84,7 +85,7 @@ fn ray_color(ray: &Ray, world: &Scene, bounces_left: i32) -> Vec3 {
 }
 
 fn main() {
-    let camera = Camera::new_with_fov(Vec3::new(0.5, 0.0, 0.5), ASPECT_RATIO, 90.0);
+    let camera = Camera::new_with_fov(Vec3::new(0.5, 0.0, 1.5), ASPECT_RATIO, 90.0);
 
     // Init
     let mut image: Vec<Vec<Vec3>> = vec![
@@ -137,6 +138,15 @@ fn main() {
         center: Vec3::new(2.0, 0.0, -1.0),
         radius: 0.5,
         material: Box::new(materials::Dielectric { ir: 1.5 }),
+    }));
+    objects.push(Box::new(Triangle {
+        p1: Vec3::new(-1.0, 0.0, 0.0),
+        p2: Vec3::new(2.0, 0.0, 0.0),
+        p3: Vec3::new(1.0, 2.0, 0.0),
+        material: Box::new(materials::NormalMaterial)
+        // material: Box::new(materials::Lambertian {
+        //     albedo: Vec3::new(0.2, 0.2, 0.1),
+        // }),
     }));
 
     let mut lights: Vec<Box<dyn Light>> = Vec::new();
