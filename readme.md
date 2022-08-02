@@ -6,3 +6,7 @@ Not all formulas for calculating brightness, reflection, etc. are "correct" or s
 Extensions to the book:
     - Shadows
     - Support for multiple light sources
+    - Triengles and Meshes (WIP)
+
+Current render:
+![current_render](image.png)

@@ -22,10 +22,6 @@ impl Hittable for Triangle {
 
         // Get distance from ray-origin to plane
         let dist: f64 = normal.dot(&ray.origin) - normal.dot(&self.p1);
-        if dist < 0.0 {
-            // The triangle is behind the ray
-            return Option::None;
-        }
         // Get intersection point of plane and ray
         let t = -dist / normal.dot(&ray.direction);
         if t < t_min || t > t_max {

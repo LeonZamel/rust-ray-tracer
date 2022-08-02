@@ -1,4 +1,5 @@
 use crate::ray::Ray;
+use crate::util;
 use crate::vec3::Vec3;
 
 pub struct Hit {
@@ -35,13 +36,13 @@ pub trait Hittable {
     fn hit(&self, ray: &Ray, t_min: f64, t_max: f64) -> Option<Hit>;
 }
 
-pub fn hit_list<T: Hittable>(
-    hittables: Vec<T>,
+pub fn hit_list<'a, T: Hittable>(
+    hittables: &'a Vec<T>,
     ray: &Ray,
     t_min: f64,
     t_max: f64,
-) -> Option<(T, Hit)> {
-    let mut closest: Option<(T, Hit)> = None;
+) -> Option<(&'a T, Hit)> {
+    let mut closest: Option<(&'a T, Hit)> = None;
     let mut closest_dist = t_max;
     for obj in hittables {
         match obj.hit(ray, t_min, closest_dist) {
@@ -53,4 +54,7 @@ pub fn hit_list<T: Hittable>(
         }
     }
     closest
+}
+pub fn hit_list_default<'a, T: Hittable>(hittables: &'a Vec<T>, ray: &Ray) -> Option<(&'a T, Hit)> {
+    hit_list(hittables, ray, util::EPSILON, util::INFINITY)
 }

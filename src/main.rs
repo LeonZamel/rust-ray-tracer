@@ -18,8 +18,7 @@ use rand::Rng;
 use std::fs;
 
 use camera::Camera;
-use hittable::hit_list;
-use hittable::Hittable;
+use hittable::hit_list_default;
 use light::Light;
 use lights::AmbientLight;
 use lights::PointLight;
@@ -30,14 +29,13 @@ use sphere::Sphere;
 use triangle::Triangle;
 use vec3::Vec3;
 
-const INFINITY: f64 = 999999.0;
 const MAX_BOUNCES: i32 = 20;
-const SAMPLES_PER_PIXEL: i32 = 10;
+const SAMPLES_PER_PIXEL: i32 = 100;
 const MAX_LIGHT_VAL: f64 = 2.0;
 
 static ASPECT_RATIO: f64 = 16.0 / 9.0;
 
-static IMAGE_HEIGHT: usize = 400;
+static IMAGE_HEIGHT: usize = 800;
 static IMAGE_WIDTH: usize = (IMAGE_HEIGHT as f64 * ASPECT_RATIO) as usize;
 
 fn ray_color_per_light(ray: &Ray, world: &Scene, bounces_left: i32, dist_so_far: f64) -> Vec<Vec3> {
@@ -45,7 +43,7 @@ fn ray_color_per_light(ray: &Ray, world: &Scene, bounces_left: i32, dist_so_far:
     if bounces_left == 0 {
         return world.lights.iter().map(|_| Vec3::z()).collect();
     }
-    let hit = hit_list(world.objects, ray, 0.001, INFINITY);
+    let hit = hit_list_default(&world.objects, ray);
     match hit {
         None => world
             .lights
@@ -85,7 +83,7 @@ fn ray_color(ray: &Ray, world: &Scene, bounces_left: i32) -> Vec3 {
 }
 
 fn main() {
-    let camera = Camera::new_with_fov(Vec3::new(0.5, 0.0, 1.5), ASPECT_RATIO, 90.0);
+    let camera = Camera::new_with_fov(Vec3::new(0.5, 0.0, 1.5), ASPECT_RATIO, 80.0);
 
     // Init
     let mut image: Vec<Vec<Vec3>> = vec![
@@ -101,57 +99,71 @@ fn main() {
     ];
 
     // World
-    let mut objects = HittableList::new();
-    objects.push(Box::new(Sphere {
-        center: Vec3::new(1.0, 0.0, -1.0),
-        radius: 0.5,
-        material: Box::new(materials::Lambertian {
+    let mut objects = Vec::new();
+    objects.push(Object::new(
+        Box::new(materials::Lambertian {
             albedo: Vec3::new(0.2, 0.8, 0.2),
         }),
-    }));
-    objects.push(Box::new(Sphere {
-        center: Vec3::new(0.0, -100.5, -1.0),
-        radius: 100.0,
-        material: Box::new(materials::Lambertian {
+        Box::new(Sphere {
+            center: Vec3::new(1.0, 0.0, -1.0),
+            radius: 0.5,
+        }),
+    ));
+    objects.push(Object::new(
+        Box::new(materials::Lambertian {
             albedo: Vec3::new(0.2, 0.2, 0.1),
         }),
-    }));
-    objects.push(Box::new(Sphere {
-        center: Vec3::new(-1.0, 0.0, -1.0),
-        radius: 0.5,
-        material: Box::new(materials::Metal {
+        Box::new(Sphere {
+            center: Vec3::new(0.0, -100.5, -1.0),
+            radius: 100.0,
+        }),
+    ));
+    objects.push(Object::new(
+        Box::new(materials::Metal {
             albedo: Vec3::new(0.8, 0.2, 0.2),
             fuzz: 0.02,
         }),
-    }));
-    objects.push(Box::new(Sphere {
-        center: Vec3::new(0.0, 0.0, -1.0),
-        radius: 0.5,
-        material: Box::new(materials::Dielectric { ir: 1.5 }),
-    }));
-    objects.push(Box::new(Sphere {
-        center: Vec3::new(0.0, 0.0, -1.0),
-        radius: -0.45,
-        material: Box::new(materials::Dielectric { ir: 1.5 }),
-    }));
-    objects.push(Box::new(Sphere {
-        center: Vec3::new(2.0, 0.0, -1.0),
-        radius: 0.5,
-        material: Box::new(materials::Dielectric { ir: 1.5 }),
-    }));
-    objects.push(Box::new(Triangle {
-        p1: Vec3::new(-1.0, 0.0, 0.0),
-        p2: Vec3::new(2.0, 0.0, 0.0),
-        p3: Vec3::new(1.0, 2.0, 0.0),
-        material: Box::new(materials::Lambertian {
-            albedo: Vec3::new(0.2, 0.2, 0.1),
+        Box::new(Sphere {
+            center: Vec3::new(-1.0, 0.0, -1.0),
+            radius: 0.5,
         }),
-    }));
+    ));
+    objects.push(Object::new(
+        Box::new(materials::Dielectric { ir: 1.5 }),
+        Box::new(Sphere {
+            center: Vec3::new(0.0, 0.0, -1.0),
+            radius: 0.5,
+        }),
+    ));
+    objects.push(Object::new(
+        Box::new(materials::Dielectric { ir: 1.5 }),
+        Box::new(Sphere {
+            center: Vec3::new(0.0, 0.0, -1.0),
+            radius: -0.45,
+        }),
+    ));
+    objects.push(Object::new(
+        Box::new(materials::Dielectric { ir: 1.5 }),
+        Box::new(Sphere {
+            center: Vec3::new(2.0, 0.0, -1.0),
+            radius: 0.5,
+        }),
+    ));
+    objects.push(Object::new(
+        Box::new(materials::Lambertian {
+            albedo: Vec3::new(0.2, 0.2, 1.0),
+        }),
+        Box::new(Triangle {
+            p1: Vec3::new(-1.0, -0.5, 0.0),
+            p2: Vec3::new(-1.0, 0.5, -0.5),
+            p3: Vec3::new(-1.0, 0.5, 0.5),
+        }),
+    ));
 
     let mut lights: Vec<Box<dyn Light>> = Vec::new();
     lights.push(Box::new(PointLight {
         color: Vec3::new(1.0, 1.0, 1.0),
-        position: Vec3::new(3.0, 5.0, 3.0),
+        position: Vec3::new(3.0, 2.0, 3.0),
         intensity: 20.0,
     }));
 
