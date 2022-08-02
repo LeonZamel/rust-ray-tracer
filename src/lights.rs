@@ -1,4 +1,5 @@
-use crate::hittable::HittableList;
+use crate::hittable::hit_list;
+use crate::hittable::Hittable;
 use crate::light::Light;
 use crate::light::LightInfo;
 use crate::ray::Ray;
@@ -14,9 +15,9 @@ impl Light for PointLight {
         1.0 / dist.powf(2.0)
     }
 
-    fn at(&self, origin: Vec3, world: &HittableList, dist_so_far: f64) -> LightInfo {
+    fn at(&self, origin: Vec3, world: &Vec<Box<dyn Hittable>>, dist_so_far: f64) -> LightInfo {
         let direction = (self.position - origin).unit_vector();
-        match world.hit_default(&Ray {
+        match hit_list(&Ray {
             direction,
             origin: origin,
         }) {

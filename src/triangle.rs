@@ -1,11 +1,9 @@
 use crate::hittable::Hit;
 use crate::hittable::Hittable;
-use crate::material::Material;
 use crate::ray::Ray;
 use crate::util::EPSILON;
 use crate::vec3::Vec3;
 pub struct Triangle {
-    pub material: Box<dyn Material>,
     pub p1: Vec3,
     pub p2: Vec3,
     pub p3: Vec3,
@@ -43,13 +41,7 @@ impl Hittable for Triangle {
             && (p31 - p23 * p23.dot(&p31) / p23.length_squared()).dot(&pi2) > 0.0
             && (p12 - p31 * p31.dot(&p12) / p31.length_squared()).dot(&pi3) > 0.0
         {
-            Option::from(Hit::new(
-                intersection,
-                normal,
-                t,
-                ray,
-                self.material.as_ref(),
-            ))
+            Option::from(Hit::new(intersection, normal, t, ray))
         } else {
             Option::None
         }

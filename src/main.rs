@@ -4,6 +4,9 @@ mod light;
 mod lights;
 mod material;
 mod materials;
+mod mesh;
+mod object;
+mod polygon;
 mod ray;
 mod scene;
 mod sphere;
@@ -15,11 +18,12 @@ use rand::Rng;
 use std::fs;
 
 use camera::Camera;
+use hittable::hit_list;
 use hittable::Hittable;
-use hittable::HittableList;
 use light::Light;
 use lights::AmbientLight;
 use lights::PointLight;
+use object::Object;
 use ray::Ray;
 use scene::Scene;
 use sphere::Sphere;
@@ -41,14 +45,14 @@ fn ray_color_per_light(ray: &Ray, world: &Scene, bounces_left: i32, dist_so_far:
     if bounces_left == 0 {
         return world.lights.iter().map(|_| Vec3::z()).collect();
     }
-    let hit = world.objects.hit_default(ray);
+    let hit = hit_list(world.objects, ray, 0.001, INFINITY);
     match hit {
         None => world
             .lights
             .iter()
             .map(|light| light.no_hit(&ray, dist_so_far))
             .collect(),
-        Some(hit) => match hit.material.scatter(&ray, &hit) {
+        Some((obj, hit)) => match obj.material.scatter(&ray, &hit) {
             None => world.lights.iter().map(|_| Vec3::z()).collect(),
             Some(next_ray) => ray_color_per_light(
                 &next_ray,
@@ -60,7 +64,7 @@ fn ray_color_per_light(ray: &Ray, world: &Scene, bounces_left: i32, dist_so_far:
         .iter()
         .zip(world.lights.iter())
         .map(|(next_color, light)| {
-            hit.material.get_color(
+            obj.material.get_color(
                 &ray,
                 light.at(hit.p, &world.objects, dist_so_far),
                 &hit,
@@ -97,7 +101,7 @@ fn main() {
     ];
 
     // World
-    let mut objects = HittableList::new(0.001, INFINITY);
+    let mut objects = HittableList::new();
     objects.push(Box::new(Sphere {
         center: Vec3::new(1.0, 0.0, -1.0),
         radius: 0.5,

@@ -1,30 +1,21 @@
-use crate::material::Material;
 use crate::ray::Ray;
 use crate::vec3::Vec3;
 
-pub struct Hit<'a> {
+pub struct Hit {
     pub p: Vec3,
     pub normal: Vec3, // Always points opposite to hit ray
     pub t: f64,
     pub front_face: bool, // If the face that was hit was the front, i.e. outward face
-    pub material: &'a dyn Material,
 }
 
-impl<'a> Hit<'a> {
-    pub fn new(
-        p: Vec3,
-        outward_normal: Vec3,
-        t: f64,
-        ray: &Ray,
-        material: &'a dyn Material,
-    ) -> Hit<'a> {
+impl Hit {
+    pub fn new(p: Vec3, outward_normal: Vec3, t: f64, ray: &Ray) -> Hit {
         let (front_face, normal) = Hit::to_face_normal(ray, outward_normal);
         Hit {
             p,
             normal,
             t,
             front_face,
-            material,
         }
     }
     pub fn to_face_normal(ray: &Ray, outward_normal: Vec3) -> (bool, Vec3) {
@@ -44,41 +35,22 @@ pub trait Hittable {
     fn hit(&self, ray: &Ray, t_min: f64, t_max: f64) -> Option<Hit>;
 }
 
-pub struct HittableList {
-    hittables: Vec<Box<dyn Hittable>>,
-    default_t_min: f64,
-    default_t_max: f64,
-}
-impl HittableList {
-    pub fn new(default_t_min: f64, default_t_max: f64) -> HittableList {
-        HittableList {
-            hittables: Vec::new(),
-            default_t_min,
-            default_t_max,
-        }
-    }
-
-    pub fn push(&mut self, hittable: Box<dyn Hittable>) {
-        self.hittables.push(hittable);
-    }
-
-    pub fn hit_default(&self, ray: &Ray) -> Option<Hit> {
-        self.hit(ray, self.default_t_min, self.default_t_max)
-    }
-}
-impl Hittable for HittableList {
-    fn hit(&self, ray: &Ray, t_min: f64, t_max: f64) -> Option<Hit> {
-        let mut closest_hit: Option<Hit> = None;
-        let mut closest_dist = t_max;
-        for obj in &self.hittables {
-            match obj.hit(ray, t_min, closest_dist) {
-                None => continue,
-                Some(hit) => {
-                    closest_dist = hit.t;
-                    closest_hit = Some(hit);
-                }
+pub fn hit_list<T: Hittable>(
+    hittables: Vec<T>,
+    ray: &Ray,
+    t_min: f64,
+    t_max: f64,
+) -> Option<(T, Hit)> {
+    let mut closest: Option<(T, Hit)> = None;
+    let mut closest_dist = t_max;
+    for obj in hittables {
+        match obj.hit(ray, t_min, closest_dist) {
+            None => continue,
+            Some(hit) => {
+                closest_dist = hit.t;
+                closest = Some((obj, hit));
             }
         }
-        closest_hit
     }
+    closest
 }

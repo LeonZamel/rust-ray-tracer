@@ -1,9 +1,7 @@
-use crate::hittable::HittableList;
 use crate::light::Light;
-use crate::ray::Ray;
-use crate::vec3::Vec3;
+use crate::object::Object;
 
 pub struct Scene {
-    pub objects: HittableList,
+    pub objects: Vec<Object>,
     pub lights: Vec<Box<dyn Light>>,
 }
