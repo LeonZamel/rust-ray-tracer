@@ -42,36 +42,32 @@ fn ray_color_per_light(ray: &Ray, world: &Scene, bounces_left: i32, dist_so_far:
         return world.lights.iter().map(|_| Vec3::z()).collect();
     }
     let hit = world.objects.hit_default(ray);
-    let next;
     match hit {
         None => world
             .lights
             .iter()
             .map(|light| light.no_hit(&ray, dist_so_far))
             .collect(),
-        Some(hit) => {
-            next = hit.material.scatter(&ray, &hit);
-            match next {
-                None => world.lights.iter().map(|_| Vec3::z()).collect(),
-                Some(next_ray) => ray_color_per_light(
-                    &next_ray,
-                    world,
-                    bounces_left - 1,
-                    dist_so_far + (hit.p - ray.origin).length(),
-                )
-                .iter()
-                .zip(world.lights.iter())
-                .map(|(next_color, light)| {
-                    hit.material.get_color(
-                        &ray,
-                        light.at(hit.p, &world.objects, dist_so_far),
-                        &hit,
-                        *next_color,
-                    )
-                })
-                .collect(),
-            }
+        Some(hit) => match hit.material.scatter(&ray, &hit) {
+            None => world.lights.iter().map(|_| Vec3::z()).collect(),
+            Some(next_ray) => ray_color_per_light(
+                &next_ray,
+                world,
+                bounces_left - 1,
+                dist_so_far + (hit.p - ray.origin).length(),
+            ),
         }
+        .iter()
+        .zip(world.lights.iter())
+        .map(|(next_color, light)| {
+            hit.material.get_color(
+                &ray,
+                light.at(hit.p, &world.objects, dist_so_far),
+                &hit,
+                *next_color,
+            )
+        })
+        .collect(),
     }
 }
 
@@ -143,10 +139,9 @@ fn main() {
         p1: Vec3::new(-1.0, 0.0, 0.0),
         p2: Vec3::new(2.0, 0.0, 0.0),
         p3: Vec3::new(1.0, 2.0, 0.0),
-        material: Box::new(materials::NormalMaterial)
-        // material: Box::new(materials::Lambertian {
-        //     albedo: Vec3::new(0.2, 0.2, 0.1),
-        // }),
+        material: Box::new(materials::Lambertian {
+            albedo: Vec3::new(0.2, 0.2, 0.1),
+        }),
     }));
 
     let mut lights: Vec<Box<dyn Light>> = Vec::new();
