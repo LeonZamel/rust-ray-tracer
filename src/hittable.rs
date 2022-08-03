@@ -42,6 +42,7 @@ pub fn hit_list<'a, T: Hittable>(
     t_min: f64,
     t_max: f64,
 ) -> Option<(&'a T, Hit)> {
+    // Super inefficient. Add segmentation structure like 3-D tree
     let mut closest: Option<(&'a T, Hit)> = None;
     let mut closest_dist = t_max;
     for obj in hittables {

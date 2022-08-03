@@ -16,12 +16,14 @@ mod vec3;
 
 use rand::Rng;
 use std::fs;
+use std::path::Path;
 
 use camera::Camera;
 use hittable::hit_list_default;
 use light::Light;
 use lights::AmbientLight;
 use lights::PointLight;
+use mesh::Mesh;
 use object::Object;
 use ray::Ray;
 use scene::Scene;
@@ -30,7 +32,7 @@ use triangle::Triangle;
 use vec3::Vec3;
 
 const MAX_BOUNCES: i32 = 20;
-const SAMPLES_PER_PIXEL: i32 = 100;
+const SAMPLES_PER_PIXEL: i32 = 50;
 const MAX_LIGHT_VAL: f64 = 2.0;
 
 static ASPECT_RATIO: f64 = 16.0 / 9.0;
@@ -158,6 +160,17 @@ fn main() {
             p2: Vec3::new(-1.0, 0.5, -0.5),
             p3: Vec3::new(-1.0, 0.5, 0.5),
         }),
+    ));
+    let bunny_mesh = Mesh::from_file(
+        Path::new("data/LowPolyTree1.obj"),
+        Vec3::new(2.0, -0.5, 0.0),
+    )
+    .unwrap();
+    objects.push(Object::new(
+        Box::new(materials::Lambertian {
+            albedo: Vec3::new(0.1, 0.5, 0.1),
+        }),
+        Box::new(bunny_mesh),
     ));
 
     let mut lights: Vec<Box<dyn Light>> = Vec::new();
