@@ -10,6 +10,7 @@ mod polygon;
 mod ray;
 mod scene;
 mod sphere;
+mod three_d_tree;
 mod triangle;
 mod util;
 mod vec3;
