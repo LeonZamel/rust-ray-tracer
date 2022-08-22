@@ -1,7 +1,8 @@
+use crate::three_d_tree::Axis;
 use rand::Rng;
 use std::ops;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Vec3 {
     pub x: f64,
     pub y: f64,
@@ -99,6 +100,14 @@ impl Vec3 {
             -(self.x * other.z - self.z * other.x),
             self.x * other.y - self.y * other.x,
         )
+    }
+
+    pub fn get_axis(&self, axis: &Axis) -> f64 {
+        match axis {
+            Axis::X => self.x,
+            Axis::Y => self.y,
+            Axis::Z => self.z,
+        }
     }
 }
 impl ops::Add<Vec3> for Vec3 {

@@ -57,9 +57,10 @@ impl Camera {
     pub fn get_ray(&self, horizontal_frac: f64, vertical_frac: f64) -> Ray {
         Ray {
             origin: self.origin,
-            direction: self.lower_left_viewport_corner
+            direction: (self.lower_left_viewport_corner
                 + self.horizontal * horizontal_frac
-                + self.vertical * vertical_frac,
+                + self.vertical * vertical_frac)
+                .unit_vector(),
         }
     }
 }

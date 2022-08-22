@@ -1,5 +1,6 @@
 use crate::hittable::hit_list_default;
 use crate::hittable::Hittable;
+use crate::hittable::ObjectContainer;
 use crate::light::Light;
 use crate::light::LightInfo;
 use crate::object::Object;
@@ -16,15 +17,12 @@ impl Light for PointLight {
         1.0 / dist.powf(2.0)
     }
 
-    fn at(&self, origin: Vec3, world: &Vec<Object>, dist_so_far: f64) -> LightInfo {
+    fn at(&self, origin: Vec3, world: &dyn ObjectContainer, dist_so_far: f64) -> LightInfo {
         let direction = (self.position - origin).unit_vector();
-        match hit_list_default(
-            world,
-            &Ray {
-                direction,
-                origin: origin,
-            },
-        ) {
+        match world.get_object_hit(&Ray {
+            direction,
+            origin: origin,
+        }) {
             None => LightInfo {
                 color: (self.color * self.intensity)
                     * self.falloff((self.position - origin).length() + dist_so_far),
@@ -59,7 +57,7 @@ impl Light for AmbientLight {
         1.0
     }
 
-    fn at(&self, _origin: Vec3, _world: &Vec<Object>, _dist_so_far: f64) -> LightInfo {
+    fn at(&self, _origin: Vec3, _world: &dyn ObjectContainer, _dist_so_far: f64) -> LightInfo {
         LightInfo {
             color: Vec3::z(),
             direction: Vec3::z(),

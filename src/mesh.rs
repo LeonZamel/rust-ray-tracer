@@ -1,5 +1,4 @@
-use crate::hittable::{hit_list, Hittable};
-use crate::polygon::Polygon;
+use crate::hittable::{hit_list, BoundingBox, Hit, Hittable};
 use crate::ray::Ray;
 use crate::triangle::Triangle;
 use crate::vec3::Vec3;
@@ -10,6 +9,7 @@ use std::path;
 pub struct Mesh {
     faces: Vec<Triangle>,
     offset: Vec3,
+    bounds: BoundingBox,
 }
 impl Mesh {
     pub fn from_file(path: &path::Path, offset: Vec3) -> Result<Mesh, Box<dyn std::error::Error>> {
@@ -46,13 +46,54 @@ impl Mesh {
                 None => continue,      // Emppty line
             }
         }
-        Ok(Mesh { faces, offset })
+        Ok(Mesh {
+            faces,
+            offset,
+            bounds: BoundingBox::new(
+                vertices
+                    .iter()
+                    .min_by(|a, b| a.x.partial_cmp(&b.x).unwrap())
+                    .unwrap()
+                    .x
+                    + offset.x,
+                vertices
+                    .iter()
+                    .max_by(|a, b| a.x.partial_cmp(&b.x).unwrap())
+                    .unwrap()
+                    .x
+                    + offset.x,
+                vertices
+                    .iter()
+                    .min_by(|a, b| a.y.partial_cmp(&b.y).unwrap())
+                    .unwrap()
+                    .y
+                    + offset.y,
+                vertices
+                    .iter()
+                    .max_by(|a, b| a.y.partial_cmp(&b.y).unwrap())
+                    .unwrap()
+                    .y
+                    + offset.y,
+                vertices
+                    .iter()
+                    .min_by(|a, b| a.z.partial_cmp(&b.z).unwrap())
+                    .unwrap()
+                    .z
+                    + offset.z,
+                vertices
+                    .iter()
+                    .max_by(|a, b| a.z.partial_cmp(&b.z).unwrap())
+                    .unwrap()
+                    .z
+                    + offset.z,
+            ),
+        })
     }
 }
 impl Hittable for Mesh {
-    fn hit(&self, ray: &Ray, t_min: f64, t_max: f64) -> Option<crate::hittable::Hit> {
+    fn hit(&self, ray: &Ray, t_min: f64, t_max: f64) -> Option<Hit> {
         hit_list(
-            &self.faces,
+            self.faces.iter().collect(),
             &Ray {
                 // Instead of moving the mesh, we just move the ray in the opposite direction
                 origin: ray.origin - self.offset,
@@ -62,5 +103,9 @@ impl Hittable for Mesh {
             t_max,
         )
         .map(|(_, h)| h)
+    }
+
+    fn get_bounds(&self) -> BoundingBox {
+        self.bounds.clone()
     }
 }

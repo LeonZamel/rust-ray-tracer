@@ -18,9 +18,11 @@ mod vec3;
 use rand::Rng;
 use std::fs;
 use std::path::Path;
+use three_d_tree::build_tdtree;
 
 use camera::Camera;
 use hittable::hit_list_default;
+use hittable::ObjectContainer;
 use light::Light;
 use lights::AmbientLight;
 use lights::PointLight;
@@ -29,16 +31,17 @@ use object::Object;
 use ray::Ray;
 use scene::Scene;
 use sphere::Sphere;
+use three_d_tree::TDTree;
 use triangle::Triangle;
 use vec3::Vec3;
 
 const MAX_BOUNCES: i32 = 20;
-const SAMPLES_PER_PIXEL: i32 = 50;
+const SAMPLES_PER_PIXEL: i32 = 5;
 const MAX_LIGHT_VAL: f64 = 2.0;
 
 static ASPECT_RATIO: f64 = 16.0 / 9.0;
 
-static IMAGE_HEIGHT: usize = 800;
+static IMAGE_HEIGHT: usize = 200;
 static IMAGE_WIDTH: usize = (IMAGE_HEIGHT as f64 * ASPECT_RATIO) as usize;
 
 fn ray_color_per_light(ray: &Ray, world: &Scene, bounces_left: i32, dist_so_far: f64) -> Vec<Vec3> {
@@ -46,7 +49,7 @@ fn ray_color_per_light(ray: &Ray, world: &Scene, bounces_left: i32, dist_so_far:
     if bounces_left == 0 {
         return world.lights.iter().map(|_| Vec3::z()).collect();
     }
-    let hit = hit_list_default(&world.objects, ray);
+    let hit = &world.objects.get_object_hit(ray);
     match hit {
         None => world
             .lights
@@ -86,7 +89,7 @@ fn ray_color(ray: &Ray, world: &Scene, bounces_left: i32) -> Vec3 {
 }
 
 fn main() {
-    let camera = Camera::new_with_fov(Vec3::new(0.5, 0.0, 1.5), ASPECT_RATIO, 80.0);
+    let camera = Camera::new_with_fov(Vec3::new(0.51, 0.2, 1.5), ASPECT_RATIO, 80.0);
 
     // Init
     let mut image: Vec<Vec<Vec3>> = vec![
@@ -186,7 +189,7 @@ fn main() {
     }));
 
     let scene: Scene = Scene {
-        objects: objects,
+        objects: build_tdtree(&objects),
         lights: lights,
     };
 

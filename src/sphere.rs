@@ -1,3 +1,4 @@
+use crate::hittable::BoundingBox;
 use crate::hittable::Hit;
 use crate::hittable::Hittable;
 use crate::ray::Ray;
@@ -31,5 +32,15 @@ impl Hittable for Sphere {
         let p = ray.at(root);
         let outward_normal = (p - self.center) / self.radius;
         Some(Hit::new(p, outward_normal, t, ray))
+    }
+    fn get_bounds(&self) -> BoundingBox {
+        BoundingBox::new(
+            self.center.x - self.radius,
+            self.center.x + self.radius,
+            self.center.y - self.radius,
+            self.center.y + self.radius,
+            self.center.z - self.radius,
+            self.center.z + self.radius,
+        )
     }
 }

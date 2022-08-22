@@ -1,3 +1,4 @@
+use crate::hittable::BoundingBox;
 use crate::hittable::Hit;
 use crate::hittable::Hittable;
 use crate::ray::Ray;
@@ -41,5 +42,16 @@ impl Hittable for Triangle {
         } else {
             Option::None
         }
+    }
+
+    fn get_bounds(&self) -> BoundingBox {
+        BoundingBox::new(
+            self.p1.x.min(self.p2.x).min(self.p3.x),
+            self.p1.x.max(self.p2.x).max(self.p3.x),
+            self.p1.y.min(self.p2.y).min(self.p3.y),
+            self.p1.y.max(self.p2.x).max(self.p3.y),
+            self.p1.z.min(self.p2.z).min(self.p3.z),
+            self.p1.z.max(self.p2.z).max(self.p3.z),
+        )
     }
 }
