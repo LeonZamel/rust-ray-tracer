@@ -36,12 +36,12 @@ use triangle::Triangle;
 use vec3::Vec3;
 
 const MAX_BOUNCES: i32 = 20;
-const SAMPLES_PER_PIXEL: i32 = 5;
+const SAMPLES_PER_PIXEL: i32 = 10;
 const MAX_LIGHT_VAL: f64 = 2.0;
 
 static ASPECT_RATIO: f64 = 16.0 / 9.0;
 
-static IMAGE_HEIGHT: usize = 200;
+static IMAGE_HEIGHT: usize = 400;
 static IMAGE_WIDTH: usize = (IMAGE_HEIGHT as f64 * ASPECT_RATIO) as usize;
 
 fn ray_color_per_light(ray: &Ray, world: &Scene, bounces_left: i32, dist_so_far: f64) -> Vec<Vec3> {
