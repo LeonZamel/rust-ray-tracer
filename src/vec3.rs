@@ -2,7 +2,7 @@ use crate::three_d_tree::Axis;
 use rand::Rng;
 use std::ops;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone)]
 pub struct Vec3 {
     pub x: f64,
     pub y: f64,

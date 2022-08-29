@@ -1,9 +1,6 @@
-use crate::hittable::hit_list_default;
-use crate::hittable::Hittable;
 use crate::hittable::ObjectContainer;
 use crate::light::Light;
 use crate::light::LightInfo;
-use crate::object::Object;
 use crate::ray::Ray;
 use crate::vec3::Vec3;
 

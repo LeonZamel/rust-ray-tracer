@@ -1,6 +1,6 @@
-use crate::{three_d_tree::Axis, util::EPSILON, vec3::Vec3};
+use crate::{three_d_tree::Axis, vec3::Vec3};
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone)]
 pub struct Ray {
     pub origin: Vec3,
     pub direction: Vec3,

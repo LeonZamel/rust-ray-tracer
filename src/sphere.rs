@@ -34,13 +34,18 @@ impl Hittable for Sphere {
         Some(Hit::new(p, outward_normal, t, ray))
     }
     fn get_bounds(&self) -> BoundingBox {
+        let radius = if self.radius < 0.0 {
+            -self.radius
+        } else {
+            self.radius
+        };
         BoundingBox::new(
-            self.center.x - self.radius,
-            self.center.x + self.radius,
-            self.center.y - self.radius,
-            self.center.y + self.radius,
-            self.center.z - self.radius,
-            self.center.z + self.radius,
+            self.center.x - radius,
+            self.center.x + radius,
+            self.center.y - radius,
+            self.center.y + radius,
+            self.center.z - radius,
+            self.center.z + radius,
         )
     }
 }

@@ -2,7 +2,6 @@ use crate::object::Object;
 use crate::ray::Ray;
 use crate::util;
 use crate::vec3::Vec3;
-#[derive(Debug)]
 pub struct Hit {
     pub p: Vec3,
     pub normal: Vec3, // Always points opposite to hit ray
@@ -82,39 +81,11 @@ pub trait Hittable {
     fn hit(&self, ray: &Ray, t_min: f64, t_max: f64) -> Option<Hit>;
     fn get_bounds(&self) -> BoundingBox;
 }
-impl std::fmt::Debug for dyn Hittable {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", "derp")
-    }
-}
 pub trait ObjectContainer {
     fn get_object_hit(&self, ray: &Ray) -> Option<(&Object, Hit)>;
 }
 
 pub fn hit_list<'a, T: Hittable>(
-    hittables: Vec<&'a T>,
-    ray: &Ray,
-    t_min: f64,
-    t_max: f64,
-) -> Option<(&'a T, Hit)> {
-    // Super inefficient. Add segmentation structure like 3-D tree
-    let mut closest: Option<(&'a T, Hit)> = None;
-    let mut closest_dist = t_max;
-    for obj in hittables {
-        match obj.hit(ray, t_min, closest_dist) {
-            None => continue,
-            Some(hit) => {
-                closest_dist = hit.t;
-                closest = Some((obj, hit));
-            }
-        }
-    }
-    closest
-}
-pub fn hit_list_default<'a, T: Hittable>(hittables: Vec<&'a T>, ray: &Ray) -> Option<(&'a T, Hit)> {
-    hit_list(hittables, ray, util::EPSILON, util::INFINITY)
-}
-pub fn hit_list2<'a, T: Hittable>(
     hittables: &Vec<&'a T>,
     ray: &Ray,
     t_min: f64,
@@ -133,4 +104,11 @@ pub fn hit_list2<'a, T: Hittable>(
         }
     }
     closest
+}
+
+pub fn hit_list_default<'a, T: Hittable>(
+    hittables: &Vec<&'a T>,
+    ray: &Ray,
+) -> Option<(&'a T, Hit)> {
+    hit_list(hittables, ray, util::EPSILON, util::INFINITY)
 }

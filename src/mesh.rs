@@ -93,7 +93,7 @@ impl Mesh {
 impl Hittable for Mesh {
     fn hit(&self, ray: &Ray, t_min: f64, t_max: f64) -> Option<Hit> {
         hit_list(
-            self.faces.iter().collect(),
+            &self.faces.iter().collect(), // Convert to vec of references
             &Ray {
                 // Instead of moving the mesh, we just move the ray in the opposite direction
                 origin: ray.origin - self.offset,

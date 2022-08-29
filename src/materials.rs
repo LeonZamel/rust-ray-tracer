@@ -6,7 +6,6 @@ use crate::util;
 use crate::vec3::Vec3;
 use rand::Rng;
 
-#[derive(Debug)]
 pub struct NormalMaterial;
 impl Material for NormalMaterial {
     fn get_color(
@@ -24,7 +23,6 @@ impl Material for NormalMaterial {
     }
 }
 
-#[derive(Debug)]
 pub struct ConstantColorMaterial {
     pub color: Vec3,
 }
@@ -44,7 +42,6 @@ impl Material for ConstantColorMaterial {
     }
 }
 
-#[derive(Debug)]
 pub struct Lambertian {
     pub albedo: Vec3,
 }
@@ -76,7 +73,6 @@ impl Material for Lambertian {
     }
 }
 
-#[derive(Debug)]
 pub struct Metal {
     pub albedo: Vec3,
     pub fuzz: f64,
@@ -103,7 +99,6 @@ impl Material for Metal {
     }
 }
 
-#[derive(Debug)]
 pub struct Dielectric {
     pub ir: f64, // Index of Refraction
 }

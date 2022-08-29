@@ -1,10 +1,9 @@
-use crate::hittable::{hit_list2, Hit, Hittable, ObjectContainer};
+use crate::hittable::{hit_list, Hit, Hittable, ObjectContainer};
 use crate::object::Object;
 use crate::ray::Ray;
 use crate::util::{EPSILON, INFINITY};
 use crate::vec3::Vec3;
 
-#[derive(Debug)]
 pub struct TDTree<'a> {
     root: Box<TDTreePart<'a>>,
 }
@@ -19,7 +18,7 @@ impl ObjectContainer for TDTree<'_> {
             match node {
                 TDTreePart::Leaf { children } => {
                     let ret =
-                        hit_list2(children, ray, t_min.max(EPSILON), t_max).map(|(o, h)| (o, h));
+                        hit_list(children, ray, t_min.max(EPSILON), t_max).map(|(o, h)| (o, h));
                     return ret;
                 }
                 TDTreePart::Node {
@@ -50,7 +49,6 @@ impl ObjectContainer for TDTree<'_> {
         _obj_hit(self.root.as_ref(), ray, -INFINITY, INFINITY)
     }
 }
-#[derive(Debug)]
 pub enum TDTreePart<'a> {
     Node {
         axis: Axis,
@@ -62,7 +60,6 @@ pub enum TDTreePart<'a> {
         children: Vec<&'a Object>,
     },
 }
-#[derive(Debug)]
 pub enum Axis {
     X,
     Y,
@@ -76,7 +73,8 @@ pub fn build_tdtree<'a>(hittables: &'a Vec<Object>) -> TDTree<'a> {
 }
 
 fn _build_tdtree<'a>(hittables: Vec<&'a Object>, depth: i32) -> Box<TDTreePart<'a>> {
-    if hittables.len() <= 1 || depth >= 3 * 5 {
+    // We stop at 0 instead of 1 because cutting down the space of a 1 object box can still yield performance increase
+    if hittables.len() == 0 || depth >= 3 * 5 {
         return Box::new(TDTreePart::Leaf {
             children: hittables,
         });
@@ -87,6 +85,8 @@ fn _build_tdtree<'a>(hittables: Vec<&'a Object>, depth: i32) -> Box<TDTreePart<'
         2 => Axis::Z,
         _ => panic!(),
     };
+
+    // Get all bounds of the objects to find a good point for the plane
     let mut bound_points: Vec<Vec3> = hittables
         .iter()
         .flat_map(|h| vec![h.get_bounds().lower(), h.get_bounds().higher()])
@@ -95,6 +95,7 @@ fn _build_tdtree<'a>(hittables: Vec<&'a Object>, depth: i32) -> Box<TDTreePart<'
     bound_points.sort_by(|p1, p2| p1.get_axis(&axis).partial_cmp(&p2.get_axis(&axis)).unwrap());
     let mid = bound_points[bound_points.len() / 2].get_axis(&axis);
 
+    // Split objects into left and right subtree
     let left: Vec<&Object> = hittables
         .clone()
         .into_iter()
@@ -107,7 +108,8 @@ fn _build_tdtree<'a>(hittables: Vec<&'a Object>, depth: i32) -> Box<TDTreePart<'
         .clone()
         .collect();
 
-    if left.len() == hittables.len() || right.len() == hittables.len() {
+    // Some objects we cannot split into just one subtree, make sure this doesn't happen too often or we are actually doing work multiple times
+    if ((left.len() + right.len()) as f64 / hittables.len() as f64) > 1.5 {
         _build_tdtree(hittables, depth + 1)
     } else {
         Box::new(TDTreePart::Node {

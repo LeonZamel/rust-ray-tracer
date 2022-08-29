@@ -1,5 +1,4 @@
 use crate::hittable::ObjectContainer;
-use crate::object::Object;
 use crate::ray::Ray;
 use crate::vec3::Vec3;
 

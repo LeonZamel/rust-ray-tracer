@@ -21,7 +21,6 @@ use std::path::Path;
 use three_d_tree::build_tdtree;
 
 use camera::Camera;
-use hittable::hit_list_default;
 use hittable::ObjectContainer;
 use light::Light;
 use lights::AmbientLight;
@@ -31,7 +30,6 @@ use object::Object;
 use ray::Ray;
 use scene::Scene;
 use sphere::Sphere;
-use three_d_tree::TDTree;
 use triangle::Triangle;
 use vec3::Vec3;
 

@@ -3,7 +3,6 @@ use crate::hittable::Hit;
 use crate::hittable::Hittable;
 use crate::material::Material;
 use crate::ray::Ray;
-#[derive(Debug)]
 pub struct Object {
     pub material: Box<dyn Material>,
     pub shape: Box<dyn Hittable>,
