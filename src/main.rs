@@ -15,14 +15,12 @@ mod triangle;
 mod util;
 mod vec3;
 
-use hittable::HittableList;
 use rand::Rng;
 use std::fs;
 use std::path::Path;
 use three_d_tree::build_tdtree;
 
 use camera::Camera;
-use hittable::ObjectContainer;
 use light::Light;
 use lights::AmbientLight;
 use lights::PointLight;
@@ -34,7 +32,7 @@ use sphere::Sphere;
 use triangle::Triangle;
 use vec3::Vec3;
 
-const MAX_BOUNCES: i32 = 5;
+const MAX_BOUNCES: i32 = 10;
 const SAMPLES_PER_PIXEL: i32 = 20;
 const MAX_LIGHT_VAL: f64 = 2.0;
 
@@ -111,7 +109,7 @@ fn main() {
         }),
         Box::new(Sphere {
             center: Vec3::new(1.0, 0.0, -1.0),
-            radius: 0.5,
+            radius: 0.4,
         }),
     ));
     objects.push(Object::new(
@@ -130,28 +128,28 @@ fn main() {
         }),
         Box::new(Sphere {
             center: Vec3::new(-1.0, 0.0, -1.0),
-            radius: 0.5,
+            radius: 0.4,
         }),
     ));
     objects.push(Object::new(
         Box::new(materials::Dielectric { ir: 1.5 }),
         Box::new(Sphere {
             center: Vec3::new(0.0, 0.0, -1.0),
-            radius: 0.5,
+            radius: 0.4,
         }),
     ));
     objects.push(Object::new(
         Box::new(materials::Dielectric { ir: 1.5 }),
         Box::new(Sphere {
             center: Vec3::new(0.0, 0.0, -1.0),
-            radius: -0.45,
+            radius: -0.35,
         }),
     ));
     objects.push(Object::new(
         Box::new(materials::Dielectric { ir: 1.5 }),
         Box::new(Sphere {
             center: Vec3::new(2.0, 0.0, -1.0),
-            radius: 0.5,
+            radius: 0.4,
         }),
     ));
     objects.push(Object::new(
@@ -164,16 +162,16 @@ fn main() {
             p3: Vec3::new(-1.0, 0.5, 0.5),
         }),
     ));
-    let bunny_mesh = Mesh::from_file(
+    let tree_mesh = Mesh::from_file(
         Path::new("data/LowPolyTree1.obj"),
-        Vec3::new(2.0, -0.5, 0.0),
+        Vec3::new(2.0, -0.49, 0.1),
     )
     .unwrap();
     objects.push(Object::new(
         Box::new(materials::Lambertian {
             albedo: Vec3::new(0.1, 0.5, 0.1),
         }),
-        Box::new(bunny_mesh),
+        Box::new(tree_mesh),
     ));
 
     let mut lights: Vec<Box<dyn Light>> = Vec::new();
@@ -187,7 +185,7 @@ fn main() {
         color_from_ray: Box::new(|ray| lights::sky_background(1.0, ray)),
     }));
 
-    let object_container = build_tdtree(&objects, 3 * 7);
+    let object_container = build_tdtree(&objects, 6);
 
     let scene: Scene = Scene {
         objects: &object_container,

@@ -73,8 +73,7 @@ pub fn build_tdtree<'a>(hittables: &'a Vec<Object>, max_depth: i32) -> TDTree<'a
 }
 
 fn _build_tdtree<'a>(hittables: Vec<&'a Object>, depth_remaining: i32) -> Box<TDTreePart<'a>> {
-    // We stop at 0 instead of 1 because cutting down the space of a 1 object box can still yield performance increase
-    if hittables.len() == 0 || depth_remaining == 0 {
+    if hittables.len() == 1 || depth_remaining == 0 {
         return Box::new(TDTreePart::Leaf {
             children: hittables,
         });
@@ -87,13 +86,21 @@ fn _build_tdtree<'a>(hittables: Vec<&'a Object>, depth_remaining: i32) -> Box<TD
     };
 
     // Get all bounds of the objects to find a good point for the plane
-    let mut bound_points: Vec<Vec3> = hittables
-        .iter()
-        .flat_map(|h| vec![h.get_bounds().lower(), h.get_bounds().higher()])
-        .collect();
-
+    // Alternatingly use lower and upper bound
+    let eps: f64;
+    let mut bound_points: Vec<Vec3> = {
+        if depth_remaining % 6 == 0 {
+            eps = EPSILON;
+            hittables.iter().map(|h| h.get_bounds().higher()).collect()
+        } else {
+            eps = -EPSILON;
+            hittables.iter().map(|h| h.get_bounds().lower()).collect()
+        }
+    };
     bound_points.sort_by(|p1, p2| p1.get_axis(&axis).partial_cmp(&p2.get_axis(&axis)).unwrap());
-    let mid = bound_points[bound_points.len() / 2].get_axis(&axis);
+
+    // Add on a small epsilon so the object used for the bound doesn't get added to both sides
+    let mid = bound_points[bound_points.len() / 2 - 1].get_axis(&axis) + eps;
 
     // Split objects into left and right subtree
     let left: Vec<&Object> = hittables
@@ -104,12 +111,12 @@ fn _build_tdtree<'a>(hittables: Vec<&'a Object>, depth_remaining: i32) -> Box<TD
     let right: Vec<&Object> = hittables
         .clone()
         .into_iter()
-        .filter(|&h| h.get_bounds().higher().get_axis(&axis) >= mid)
+        .filter(|&h| h.get_bounds().higher().get_axis(&axis) > mid)
         .clone()
         .collect();
 
-    // Some objects we cannot split into just one subtree, make sure this doesn't happen too often or we are actually doing work multiple times
-    if ((left.len() + right.len()) as f64 / hittables.len() as f64) > 1.5 {
+    // Make sure the split actually reduces work
+    if (left.len() + right.len()) > hittables.len() {
         _build_tdtree(hittables, depth_remaining - 1)
     } else {
         Box::new(TDTreePart::Node {
