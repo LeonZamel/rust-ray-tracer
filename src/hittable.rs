@@ -112,3 +112,12 @@ pub fn hit_list_default<'a, T: Hittable>(
 ) -> Option<(&'a T, Hit)> {
     hit_list(hittables, ray, util::EPSILON, util::INFINITY)
 }
+
+pub struct HittableList<'a> {
+    pub objects: &'a Vec<Object>,
+}
+impl<'a> ObjectContainer for HittableList<'a> {
+    fn get_object_hit(&self, ray: &Ray) -> Option<(&Object, Hit)> {
+        return hit_list_default(&self.objects.iter().collect(), ray);
+    }
+}

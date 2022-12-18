@@ -15,6 +15,7 @@ mod triangle;
 mod util;
 mod vec3;
 
+use hittable::HittableList;
 use rand::Rng;
 use std::fs;
 use std::path::Path;
@@ -33,13 +34,13 @@ use sphere::Sphere;
 use triangle::Triangle;
 use vec3::Vec3;
 
-const MAX_BOUNCES: i32 = 20;
-const SAMPLES_PER_PIXEL: i32 = 50;
+const MAX_BOUNCES: i32 = 5;
+const SAMPLES_PER_PIXEL: i32 = 20;
 const MAX_LIGHT_VAL: f64 = 2.0;
 
 static ASPECT_RATIO: f64 = 16.0 / 9.0;
 
-static IMAGE_HEIGHT: usize = 800;
+static IMAGE_HEIGHT: usize = 400;
 static IMAGE_WIDTH: usize = (IMAGE_HEIGHT as f64 * ASPECT_RATIO) as usize;
 
 fn ray_color_per_light(ray: &Ray, world: &Scene, bounces_left: i32, dist_so_far: f64) -> Vec<Vec3> {
@@ -68,7 +69,7 @@ fn ray_color_per_light(ray: &Ray, world: &Scene, bounces_left: i32, dist_so_far:
         .map(|(next_color, light)| {
             obj.material.get_color(
                 &ray,
-                light.at(hit.p, &world.objects, dist_so_far),
+                light.at(hit.p, world.objects, dist_so_far),
                 &hit,
                 *next_color,
             )
@@ -186,8 +187,10 @@ fn main() {
         color_from_ray: Box::new(|ray| lights::sky_background(1.0, ray)),
     }));
 
+    let object_container = build_tdtree(&objects, 3 * 7);
+
     let scene: Scene = Scene {
-        objects: build_tdtree(&objects),
+        objects: &object_container,
         lights: lights,
     };
 

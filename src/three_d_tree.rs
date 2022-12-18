@@ -66,20 +66,20 @@ pub enum Axis {
     Z,
 }
 
-pub fn build_tdtree<'a>(hittables: &'a Vec<Object>) -> TDTree<'a> {
+pub fn build_tdtree<'a>(hittables: &'a Vec<Object>, max_depth: i32) -> TDTree<'a> {
     TDTree {
-        root: _build_tdtree(hittables.iter().collect(), 0),
+        root: _build_tdtree(hittables.iter().collect(), max_depth),
     }
 }
 
-fn _build_tdtree<'a>(hittables: Vec<&'a Object>, depth: i32) -> Box<TDTreePart<'a>> {
+fn _build_tdtree<'a>(hittables: Vec<&'a Object>, depth_remaining: i32) -> Box<TDTreePart<'a>> {
     // We stop at 0 instead of 1 because cutting down the space of a 1 object box can still yield performance increase
-    if hittables.len() == 0 || depth >= 3 * 5 {
+    if hittables.len() == 0 || depth_remaining == 0 {
         return Box::new(TDTreePart::Leaf {
             children: hittables,
         });
     }
-    let axis = match depth % 3 {
+    let axis = match depth_remaining % 3 {
         0 => Axis::X,
         1 => Axis::Y,
         2 => Axis::Z,
@@ -110,13 +110,13 @@ fn _build_tdtree<'a>(hittables: Vec<&'a Object>, depth: i32) -> Box<TDTreePart<'
 
     // Some objects we cannot split into just one subtree, make sure this doesn't happen too often or we are actually doing work multiple times
     if ((left.len() + right.len()) as f64 / hittables.len() as f64) > 1.5 {
-        _build_tdtree(hittables, depth + 1)
+        _build_tdtree(hittables, depth_remaining - 1)
     } else {
         Box::new(TDTreePart::Node {
             axis: axis,
             h: mid,
-            left: _build_tdtree(left, depth + 1),
-            right: _build_tdtree(right, depth + 1),
+            left: _build_tdtree(left, depth_remaining - 1),
+            right: _build_tdtree(right, depth_remaining - 1),
         })
     }
 }
