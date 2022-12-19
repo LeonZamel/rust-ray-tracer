@@ -33,7 +33,8 @@ use triangle::Triangle;
 use vec3::Vec3;
 
 const MAX_BOUNCES: i32 = 10;
-const SAMPLES_PER_PIXEL: i32 = 20;
+const BASE_SAMPLES_PER_PIXEL: usize = 5;
+const MAX_DYNAMIC_OVERSAMPLING_FACTOR: i32 = 10;
 const MAX_LIGHT_VAL: f64 = 2.0;
 
 static ASPECT_RATIO: f64 = 16.0 / 9.0;
@@ -46,6 +47,7 @@ fn ray_color_per_light(ray: &Ray, world: &Scene, bounces_left: i32, dist_so_far:
     if bounces_left == 0 {
         return world.lights.iter().map(|_| Vec3::z()).collect();
     }
+    // Calculate hit once, then get info for all lights
     let hit = &world.objects.get_object_hit(ray);
     match hit {
         None => world
@@ -83,6 +85,16 @@ fn ray_color(ray: &Ray, world: &Scene, bounces_left: i32) -> Vec3 {
         // Fixes issues when objects become too bright
         .clamp(Vec3::new(MAX_LIGHT_VAL, MAX_LIGHT_VAL, MAX_LIGHT_VAL))
         .ln_1p()
+}
+
+fn ray_from_image_pos(i: usize, j: usize, camera: &Camera) -> Ray {
+    let horizontal_frac = (i as f64 + rand::thread_rng().gen::<f64>()) / (IMAGE_WIDTH as f64 - 1.0);
+    let vertical_frac = (j as f64 + rand::thread_rng().gen::<f64>()) / (IMAGE_HEIGHT as f64 - 1.0);
+    camera.get_ray(horizontal_frac, vertical_frac)
+}
+
+fn vec_mean(vecs: &[Vec3]) -> Vec3 {
+    vecs.into_iter().fold(Vec3::z(), |acc, v| acc + *v) * (1.0 / vecs.len() as f64)
 }
 
 fn main() {
@@ -195,13 +207,34 @@ fn main() {
     // Render
     for j in (0..IMAGE_HEIGHT).rev() {
         for i in 0..IMAGE_WIDTH {
-            for _ in 0..SAMPLES_PER_PIXEL {
-                let horizontal_frac =
-                    (i as f64 + rand::thread_rng().gen::<f64>()) / (IMAGE_WIDTH as f64 - 1.0);
-                let vertical_frac =
-                    (j as f64 + rand::thread_rng().gen::<f64>()) / (IMAGE_HEIGHT as f64 - 1.0);
-                let ray = camera.get_ray(horizontal_frac, vertical_frac);
-                image[j][i] += ray_color(&ray, &scene, MAX_BOUNCES);
+            let mut color_uncertain = true;
+            let mut current_iteration = 1;
+            while color_uncertain && current_iteration <= MAX_DYNAMIC_OVERSAMPLING_FACTOR {
+                let mut colors = Vec::new();
+                for k in 0..BASE_SAMPLES_PER_PIXEL {
+                    let ray = ray_from_image_pos(i, j, &camera);
+                    let c = ray_color(&ray, &scene, MAX_BOUNCES);
+                    colors.push(c);
+                }
+                let m = vec_mean(&colors);
+                let current_mean = (m + image[j][i] * (current_iteration - 1) as f64)
+                    * (1.0 / current_iteration as f64);
+                let corrected_sample_std = (colors
+                    .iter()
+                    .fold(0.0, |acc, v| acc + (current_mean - *v).length_squared())
+                    / (colors.len() - 1) as f64)
+                    .sqrt();
+
+                // Check value of the standard error of the mean
+                if corrected_sample_std
+                    / ((current_iteration * BASE_SAMPLES_PER_PIXEL as i32) as f64).sqrt()
+                    <= 0.001
+                {
+                    color_uncertain = false
+                }
+
+                image[j][i] = current_mean;
+                current_iteration += 1;
             }
         }
     }
@@ -216,7 +249,7 @@ fn main() {
 
     for j in (0..IMAGE_HEIGHT).rev() {
         for i in 0..IMAGE_WIDTH {
-            let c = image[j][i] / (SAMPLES_PER_PIXEL as f64);
+            let c = image[j][i];
             let r = c.x.sqrt();
             let g = c.y.sqrt();
             let b = c.z.sqrt();
