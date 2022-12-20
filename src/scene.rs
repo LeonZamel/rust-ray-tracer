@@ -1,8 +1,9 @@
 use crate::hittable::ObjectContainer;
 use crate::light::Light;
-use crate::three_d_tree::TDTree;
 
 pub struct Scene<'a> {
     pub objects: &'a dyn ObjectContainer,
-    pub lights: Vec<Box<dyn Light>>,
+    pub lights: &'a Vec<Box<dyn Light>>,
 }
+
+unsafe impl<'a> Sync for Scene<'a> {}

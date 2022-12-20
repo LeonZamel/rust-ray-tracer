@@ -45,6 +45,7 @@ impl Light for PointLight {
                 .dot(&ray.direction)
     }
 }
+unsafe impl Sync for PointLight {}
 
 pub struct AmbientLight {
     pub color_from_ray: Box<dyn Fn(&Ray) -> Vec3>,
@@ -65,6 +66,7 @@ impl Light for AmbientLight {
         (self.color_from_ray)(ray)
     }
 }
+unsafe impl Sync for AmbientLight {}
 
 pub fn sky_background(brightness: f64, ray: &Ray) -> Vec3 {
     let unit_dir = ray.direction.unit_vector();

@@ -81,7 +81,7 @@ pub trait Hittable {
     fn hit(&self, ray: &Ray, t_min: f64, t_max: f64) -> Option<Hit>;
     fn get_bounds(&self) -> BoundingBox;
 }
-pub trait ObjectContainer {
+pub trait ObjectContainer: Sync {
     fn get_object_hit(&self, ray: &Ray) -> Option<(&Object, Hit)>;
 }
 
@@ -121,3 +121,4 @@ impl<'a> ObjectContainer for HittableList<'a> {
         return hit_list_default(&self.objects.iter().collect(), ray);
     }
 }
+unsafe impl<'a> Sync for HittableList<'a> {}

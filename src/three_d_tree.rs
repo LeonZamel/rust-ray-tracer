@@ -7,6 +7,7 @@ use crate::vec3::Vec3;
 pub struct TDTree<'a> {
     root: Box<TDTreePart<'a>>,
 }
+unsafe impl<'a> Sync for TDTree<'a> {}
 impl ObjectContainer for TDTree<'_> {
     fn get_object_hit(&self, ray: &Ray) -> Option<(&Object, Hit)> {
         fn _obj_hit<'a>(

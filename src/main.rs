@@ -1,3 +1,5 @@
+extern crate rayon;
+
 mod camera;
 mod hittable;
 mod light;
@@ -14,6 +16,8 @@ mod three_d_tree;
 mod triangle;
 mod util;
 mod vec3;
+
+use rayon::prelude::*;
 
 use rand::Rng;
 use std::fs;
@@ -201,43 +205,47 @@ fn main() {
 
     let scene: Scene = Scene {
         objects: &object_container,
-        lights: lights,
+        lights: &lights,
     };
 
     // Render
-    for j in (0..IMAGE_HEIGHT).rev() {
-        for i in 0..IMAGE_WIDTH {
-            let mut color_uncertain = true;
-            let mut current_iteration = 1;
-            while color_uncertain && current_iteration <= MAX_DYNAMIC_OVERSAMPLING_FACTOR {
-                let mut colors = Vec::new();
-                for k in 0..BASE_SAMPLES_PER_PIXEL {
-                    let ray = ray_from_image_pos(i, j, &camera);
-                    let c = ray_color(&ray, &scene, MAX_BOUNCES);
-                    colors.push(c);
-                }
-                let m = vec_mean(&colors);
-                let current_mean = (m + image[j][i] * (current_iteration - 1) as f64)
-                    * (1.0 / current_iteration as f64);
-                let corrected_sample_std = (colors
-                    .iter()
-                    .fold(0.0, |acc, v| acc + (current_mean - *v).length_squared())
-                    / (colors.len() - 1) as f64)
-                    .sqrt();
+    image
+        .iter_mut()
+        .zip((0..IMAGE_HEIGHT))
+        .par_bridge()
+        .for_each(|(row, j)| {
+            (0..IMAGE_WIDTH).for_each(|i| {
+                let mut color_uncertain = true;
+                let mut current_iteration = 1;
+                while color_uncertain && current_iteration <= MAX_DYNAMIC_OVERSAMPLING_FACTOR {
+                    let mut colors = Vec::new();
+                    for k in 0..BASE_SAMPLES_PER_PIXEL {
+                        let ray = ray_from_image_pos(i, j, &camera);
+                        let c = ray_color(&ray, &scene, MAX_BOUNCES);
+                        colors.push(c);
+                    }
+                    let m = vec_mean(&colors);
+                    let current_mean = (m + row[i] * (current_iteration - 1) as f64)
+                        * (1.0 / current_iteration as f64);
+                    let corrected_sample_std = (colors
+                        .iter()
+                        .fold(0.0, |acc, v| acc + (current_mean - *v).length_squared())
+                        / (colors.len() - 1) as f64)
+                        .sqrt();
 
-                // Check value of the standard error of the mean
-                if corrected_sample_std
-                    / ((current_iteration * BASE_SAMPLES_PER_PIXEL as i32) as f64).sqrt()
-                    <= 0.001
-                {
-                    color_uncertain = false
-                }
+                    // Check value of the standard error of the mean
+                    if corrected_sample_std
+                        / ((current_iteration * BASE_SAMPLES_PER_PIXEL as i32) as f64).sqrt()
+                        <= 0.001
+                    {
+                        color_uncertain = false
+                    }
 
-                image[j][i] = current_mean;
-                current_iteration += 1;
-            }
-        }
-    }
+                    row[i] = current_mean;
+                    current_iteration += 1;
+                }
+            })
+        });
 
     // Write to file
     let mut data = "P3\n".to_string()
