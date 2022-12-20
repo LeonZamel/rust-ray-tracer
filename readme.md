@@ -8,6 +8,8 @@ Extensions to the book:
 - Triangles and meshes (WIP, currently not optimized)
 - Reading .obj files (only subset of specification supported)
 - K-d Tree for space division and faster ray intersection checks
+- Multiprocessing
+- Dynamic resampling of pixels with high variance color values
 
 Note that not all formulas for calculating brightness, reflection, etc. are necessarily "correct" or standard practice. They are a mixture of what is efficient (enough), looks good, and seemed plausible.
 

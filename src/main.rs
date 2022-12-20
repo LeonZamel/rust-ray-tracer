@@ -219,7 +219,7 @@ fn main() {
                 let mut current_iteration = 1;
                 while color_uncertain && current_iteration <= MAX_DYNAMIC_OVERSAMPLING_FACTOR {
                     let mut colors = Vec::new();
-                    for k in 0..BASE_SAMPLES_PER_PIXEL {
+                    for _ in 0..BASE_SAMPLES_PER_PIXEL {
                         let ray = ray_from_image_pos(i, j, &camera);
                         let c = ray_color(&ray, &scene, MAX_BOUNCES);
                         colors.push(c);
@@ -233,13 +233,10 @@ fn main() {
                         / (colors.len() - 1) as f64)
                         .sqrt();
 
-                    // Check value of the standard error of the mean
-                    if corrected_sample_std
+                    // Check value of the standard error of the mean, if it is high, get more samples
+                    color_uncertain = corrected_sample_std
                         / ((current_iteration * BASE_SAMPLES_PER_PIXEL as i32) as f64).sqrt()
-                        <= 0.001
-                    {
-                        color_uncertain = false
-                    }
+                        > 0.001;
 
                     row[i] = current_mean;
                     current_iteration += 1;
