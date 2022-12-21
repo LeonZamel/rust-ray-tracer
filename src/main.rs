@@ -40,6 +40,7 @@ const MAX_BOUNCES: i32 = 10;
 const BASE_SAMPLES_PER_PIXEL: usize = 5;
 const MAX_DYNAMIC_OVERSAMPLING_FACTOR: i32 = 10;
 const MAX_LIGHT_VAL: f64 = 2.0;
+const COLOR_MEAN_UNCERTAINTY_THRESHOLD: f64 = 0.001;
 
 static ASPECT_RATIO: f64 = 16.0 / 9.0;
 
@@ -211,7 +212,7 @@ fn main() {
     // Render
     image
         .iter_mut()
-        .zip((0..IMAGE_HEIGHT))
+        .zip(0..IMAGE_HEIGHT)
         .par_bridge()
         .for_each(|(row, j)| {
             (0..IMAGE_WIDTH).for_each(|i| {
@@ -236,7 +237,7 @@ fn main() {
                     // Check value of the standard error of the mean, if it is high, get more samples
                     color_uncertain = corrected_sample_std
                         / ((current_iteration * BASE_SAMPLES_PER_PIXEL as i32) as f64).sqrt()
-                        > 0.001;
+                        > COLOR_MEAN_UNCERTAINTY_THRESHOLD;
 
                     row[i] = current_mean;
                     current_iteration += 1;
