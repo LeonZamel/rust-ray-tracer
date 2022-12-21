@@ -10,10 +10,6 @@ impl Ray {
         self.origin + self.direction * t
     }
     pub fn intersect_axis_plane(&self, axis: &Axis, h: f64) -> f64 {
-        if (self.direction.get_axis(axis)) == 0.0 {
-            f64::INFINITY
-        } else {
-            (h - self.origin.get_axis(axis)) / self.direction.get_axis(axis)
-        }
+        (h - self.origin.get_axis(axis)) / self.direction.get_axis(axis)
     }
 }

@@ -174,9 +174,9 @@ fn main() {
             albedo: Vec3::new(0.2, 0.2, 1.0),
         }),
         Box::new(Triangle {
-            p1: Vec3::new(-0.8, -0.5, 0.0),
-            p2: Vec3::new(-0.8, 0.5, -0.5),
-            p3: Vec3::new(-0.8, 0.5, 0.5),
+            p1: Vec3::new(-1.0, -0.5, 0.0),
+            p2: Vec3::new(-1.0, 0.5, -0.5),
+            p3: Vec3::new(-1.0, 0.5, 0.5),
         }),
     ));
     let tree_mesh = Mesh::from_file(
@@ -202,7 +202,7 @@ fn main() {
         color_from_ray: Box::new(|ray| lights::sky_background(1.0, ray)),
     }));
 
-    let object_container = build_tdtree(&objects, 6);
+    let object_container = build_tdtree(&objects, 12);
 
     let scene: Scene = Scene {
         objects: &object_container,

@@ -16,15 +16,11 @@ impl ObjectContainer for TDTree<'_> {
             t_min: f64,
             t_max: f64,
         ) -> Option<(&'a Object, Hit)> {
-            if t_min > t_max {
+            if t_min >= t_max {
                 return None;
             }
             match node {
-                TDTreePart::Leaf { children } => {
-                    let ret =
-                        hit_list(children, ray, t_min.max(EPSILON), t_max).map(|(o, h)| (o, h));
-                    return ret;
-                }
+                TDTreePart::Leaf { children } => hit_list(children, ray, t_min.max(EPSILON), t_max),
                 TDTreePart::Node {
                     axis,
                     h,
@@ -41,15 +37,15 @@ impl ObjectContainer for TDTree<'_> {
                     };
                     if t > t_max {
                         // Plane intersection comes after the ray interval
-                        return _obj_hit(first.as_ref(), ray, t_min, t_max);
-                    }
-                    if t < t_min {
+                        _obj_hit(first.as_ref(), ray, t_min, t_max)
+                    } else if t < t_min {
                         // Plane intersection comes before the ray interval
-                        return _obj_hit(second.as_ref(), ray, t_min, t_max);
+                        _obj_hit(second.as_ref(), ray, t_min, t_max)
+                    } else {
+                        // Plane intersection is in the ray interval
+                        _obj_hit(first.as_ref(), ray, t_min, t)
+                            .or_else(|| _obj_hit(second.as_ref(), ray, t, t_max))
                     }
-                    // Plane intersection is in the ray interval
-                    _obj_hit(first.as_ref(), ray, t_min, t)
-                        .or_else(|| _obj_hit(second.as_ref(), ray, t, t_max))
                 }
             }
         }
@@ -80,7 +76,8 @@ pub fn build_tdtree<'a>(hittables: &'a Vec<Object>, max_depth: i32) -> TDTree<'a
 }
 
 fn _build_tdtree<'a>(hittables: Vec<&'a Object>, depth_remaining: i32) -> Box<TDTreePart<'a>> {
-    if hittables.len() == 1 || depth_remaining == 0 {
+    // If there are not many objects, it will likely be better to not disect any further and just test all the objects
+    if hittables.len() <= 8 || depth_remaining == 0 {
         return Box::new(TDTreePart::Leaf {
             children: hittables,
         });
@@ -122,8 +119,8 @@ fn _build_tdtree<'a>(hittables: Vec<&'a Object>, depth_remaining: i32) -> Box<TD
         .clone()
         .collect();
 
-    // Make sure the split actually reduces work
-    if (left.len() + right.len()) > hittables.len() {
+    // Make sure the split actually reduces work by a reasonable amount
+    if (left.len() + right.len()) as f64 / hittables.len() as f64 > 1.2 {
         _build_tdtree(hittables, depth_remaining - 1)
     } else {
         Box::new(TDTreePart::Node {

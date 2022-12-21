@@ -41,9 +41,9 @@ impl Mesh {
                         p3: vertices[vertex_indicies[2] - 1],
                     })
                 }
-                Some("#") => continue, // Comment
+                Some("#") => continue, // Comment, ignore
                 Some(_) => continue,   // Anything else, unhandled
-                None => continue,      // Emppty line
+                None => continue,      // Empty line
             }
         }
         Ok(Mesh {
@@ -92,17 +92,22 @@ impl Mesh {
 }
 impl Hittable for Mesh {
     fn hit(&self, ray: &Ray, t_min: f64, t_max: f64) -> Option<Hit> {
-        hit_list(
-            &self.faces.iter().collect(), // Convert to vec of references
-            &Ray {
-                // Instead of moving the mesh, we just move the ray in the opposite direction
-                origin: ray.origin - self.offset,
-                direction: ray.direction,
-            },
-            t_min,
-            t_max,
-        )
-        .map(|(_, h)| h)
+        // Check if the bounding box hits, only then continue with the more expensive check
+        if self.bounds.intersects(ray, t_min, t_max) {
+            hit_list(
+                &self.faces.iter().collect(), // Convert to Vec of references
+                &Ray {
+                    // Instead of moving the mesh, we just move the ray in the opposite direction
+                    origin: ray.origin - self.offset,
+                    direction: ray.direction,
+                },
+                t_min,
+                t_max,
+            )
+            .map(|(_, h)| h)
+        } else {
+            None
+        }
     }
 
     fn get_bounds(&self) -> BoundingBox {

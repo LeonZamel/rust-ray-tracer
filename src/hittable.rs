@@ -1,6 +1,7 @@
 use crate::object::Object;
 use crate::ray::Ray;
-use crate::util;
+use crate::three_d_tree::Axis;
+use crate::util::{self, EPSILON};
 use crate::vec3::Vec3;
 pub struct Hit {
     pub p: Vec3,
@@ -74,6 +75,28 @@ impl BoundingBox {
     }
     pub fn encloses_bounds(&self, bounds: BoundingBox) -> bool {
         self.encloses_point(&bounds.lower()) && self.encloses_point(&bounds.higher())
+    }
+    pub fn intersects(&self, ray: &Ray, t_min: f64, t_max: f64) -> bool {
+        // Branchless box intersection https://tavianator.com/2011/ray_box.html
+        let tx1 = ray.intersect_axis_plane(&Axis::X, self.x_low);
+        let tx2 = ray.intersect_axis_plane(&Axis::X, self.x_high);
+
+        let tmin = tx1.min(tx2);
+        let tmax = tx1.max(tx2);
+
+        let ty1 = ray.intersect_axis_plane(&Axis::Y, self.y_low);
+        let ty2 = ray.intersect_axis_plane(&Axis::Y, self.y_high);
+
+        let tmin = tmin.max(ty1.min(ty2));
+        let tmax = tmax.min(ty1.max(ty2));
+
+        let tz1 = ray.intersect_axis_plane(&Axis::Z, self.z_low);
+        let tz2 = ray.intersect_axis_plane(&Axis::Z, self.z_high);
+
+        let tmin = tmin.max(tz1.min(tz2));
+        let tmax = tmax.min(tz1.max(tz2));
+
+        return tmax >= t_min.max(tmin) && tmin < t_max;
     }
 }
 
