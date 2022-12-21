@@ -174,9 +174,9 @@ fn main() {
             albedo: Vec3::new(0.2, 0.2, 1.0),
         }),
         Box::new(Triangle {
-            p1: Vec3::new(-1.0, -0.5, 0.0),
-            p2: Vec3::new(-1.0, 0.5, -0.5),
-            p3: Vec3::new(-1.0, 0.5, 0.5),
+            p1: Vec3::new(-0.8, -0.5, 0.0),
+            p2: Vec3::new(-0.8, 0.5, -0.5),
+            p3: Vec3::new(-0.8, 0.5, 0.5),
         }),
     ));
     let tree_mesh = Mesh::from_file(

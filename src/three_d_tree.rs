@@ -16,6 +16,9 @@ impl ObjectContainer for TDTree<'_> {
             t_min: f64,
             t_max: f64,
         ) -> Option<(&'a Object, Hit)> {
+            if t_min > t_max {
+                return None;
+            }
             match node {
                 TDTreePart::Leaf { children } => {
                     let ret =
@@ -28,9 +31,6 @@ impl ObjectContainer for TDTree<'_> {
                     left,
                     right,
                 } => {
-                    if t_min > t_max {
-                        return None;
-                    }
                     let t = ray.intersect_axis_plane(&axis, *h);
                     let (first, second) = {
                         if ray.direction.get_axis(&axis) >= 0.0 {
@@ -39,15 +39,21 @@ impl ObjectContainer for TDTree<'_> {
                             (right, left)
                         }
                     };
-                    if t < 0.0 {
-                        return _obj_hit(second.as_ref(), ray, t, t_max);
+                    if t > t_max {
+                        // Plane intersection comes after the ray interval
+                        return _obj_hit(first.as_ref(), ray, t_min, t_max);
                     }
-                    _obj_hit(first.as_ref(), ray, t_min, t.min(t_max))
-                        .or_else(|| _obj_hit(second.as_ref(), ray, t.max(t_min), t_max))
+                    if t < t_min {
+                        // Plane intersection comes before the ray interval
+                        return _obj_hit(second.as_ref(), ray, t_min, t_max);
+                    }
+                    // Plane intersection is in the ray interval
+                    _obj_hit(first.as_ref(), ray, t_min, t)
+                        .or_else(|| _obj_hit(second.as_ref(), ray, t, t_max))
                 }
             }
         }
-        _obj_hit(self.root.as_ref(), ray, -INFINITY, INFINITY)
+        _obj_hit(self.root.as_ref(), ray, EPSILON, INFINITY)
     }
 }
 pub enum TDTreePart<'a> {
