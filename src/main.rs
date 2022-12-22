@@ -84,12 +84,13 @@ fn ray_color_per_light(ray: &Ray, world: &Scene, bounces_left: i32, dist_so_far:
 }
 
 fn ray_color(ray: &Ray, world: &Scene, bounces_left: i32) -> Vec3 {
+    // Gets the color of a specific ray in the scene
     ray_color_per_light(ray, world, bounces_left, 0.0)
         .iter()
         .fold(Vec3::z(), |acc, x| acc + *x)
         // Fixes issues when objects become too bright
-        .clamp(Vec3::new(MAX_LIGHT_VAL, MAX_LIGHT_VAL, MAX_LIGHT_VAL))
         .ln_1p()
+        .clamp(Vec3::new(MAX_LIGHT_VAL, MAX_LIGHT_VAL, MAX_LIGHT_VAL))
 }
 
 fn ray_from_image_pos(i: usize, j: usize, camera: &Camera) -> Ray {
@@ -98,14 +99,10 @@ fn ray_from_image_pos(i: usize, j: usize, camera: &Camera) -> Ray {
     camera.get_ray(horizontal_frac, vertical_frac)
 }
 
-fn vec_mean(vecs: &[Vec3]) -> Vec3 {
-    vecs.into_iter().fold(Vec3::z(), |acc, v| acc + *v) * (1.0 / vecs.len() as f64)
-}
-
 fn main() {
     let camera = Camera::new_with_fov(Vec3::new(0.51, 0.2, 1.5), ASPECT_RATIO, 80.0);
 
-    // Init
+    // Initialize the image
     let mut image: Vec<Vec<Vec3>> = vec![
         vec![
             Vec3 {
@@ -220,17 +217,22 @@ fn main() {
                 let mut current_iteration = 1;
                 while color_uncertain && current_iteration <= MAX_DYNAMIC_OVERSAMPLING_FACTOR {
                     let mut colors = Vec::new();
+                    // Get the new color samples
                     for _ in 0..BASE_SAMPLES_PER_PIXEL {
                         let ray = ray_from_image_pos(i, j, &camera);
                         let c = ray_color(&ray, &scene, MAX_BOUNCES);
                         colors.push(c);
                     }
-                    let m = vec_mean(&colors);
-                    let current_mean = (m + row[i] * (current_iteration - 1) as f64)
+                    // Calculate color mean of current samples
+                    let current_mean = colors.iter().fold(Vec3::z(), |acc, v| acc + *v)
+                        * (1.0 / colors.len() as f64);
+                    // Calculate mean of all iterations combined
+                    let total_mean = (current_mean + row[i] * (current_iteration - 1) as f64)
                         * (1.0 / current_iteration as f64);
+                    // Calculate the corrected sample standard deviation
                     let corrected_sample_std = (colors
                         .iter()
-                        .fold(0.0, |acc, v| acc + (current_mean - *v).length_squared())
+                        .fold(0.0, |acc, v| acc + (total_mean - *v).length_squared())
                         / (colors.len() - 1) as f64)
                         .sqrt();
 
@@ -239,7 +241,7 @@ fn main() {
                         / ((current_iteration * BASE_SAMPLES_PER_PIXEL as i32) as f64).sqrt()
                         > COLOR_MEAN_UNCERTAINTY_THRESHOLD;
 
-                    row[i] = current_mean;
+                    row[i] = total_mean;
                     current_iteration += 1;
                 }
             })
