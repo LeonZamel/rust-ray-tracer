@@ -3,6 +3,8 @@ use crate::ray::Ray;
 use crate::three_d_tree::Axis;
 use crate::util::{self, EPSILON};
 use crate::vec3::Vec3;
+
+#[derive(Clone)]
 pub struct Hit {
     pub p: Vec3,
     pub normal: Vec3, // Always points opposite to hit ray

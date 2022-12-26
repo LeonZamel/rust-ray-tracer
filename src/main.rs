@@ -17,12 +17,14 @@ mod triangle;
 mod util;
 mod vec3;
 
+use hittable::Hit;
 use rayon::prelude::*;
 
 use rand::Rng;
 use std::fs;
 use std::path::Path;
 use three_d_tree::build_tdtree;
+use util::EPSILON;
 
 use camera::Camera;
 use light::Light;
@@ -37,60 +39,81 @@ use triangle::Triangle;
 use vec3::Vec3;
 
 const MAX_BOUNCES: i32 = 10;
-const BASE_SAMPLES_PER_PIXEL: usize = 5;
+const BASE_SAMPLES_PER_PIXEL: usize = 10;
 const MAX_DYNAMIC_OVERSAMPLING_FACTOR: i32 = 10;
 const MAX_LIGHT_VAL: f64 = 2.0;
 const COLOR_MEAN_UNCERTAINTY_THRESHOLD: f64 = 0.001;
+const POST_PROCESS: bool = true;
+const INTER_SIMILARITY_DIST_THRESHOLD: f64 = 0.1;
+const SMOOTH_SIZE: usize = 3;
+const SMOOTHING_BASE_WEIGHT: f64 = 2.0;
 
 static ASPECT_RATIO: f64 = 16.0 / 9.0;
 
 static IMAGE_HEIGHT: usize = 400;
 static IMAGE_WIDTH: usize = (IMAGE_HEIGHT as f64 * ASPECT_RATIO) as usize;
 
-fn ray_color_per_light(ray: &Ray, world: &Scene, bounces_left: i32, dist_so_far: f64) -> Vec<Vec3> {
-    // Function that gets the color for a given ray in the scene for every light source
+fn ray_color_per_light(
+    ray: &Ray,
+    world: &Scene,
+    bounces_left: i32,
+    dist_so_far: f64,
+) -> (Vec<Vec3>, Option<Hit>) {
+    // Function that gets the color for a given ray in the scene for every light source and passes back the first hit
     if bounces_left == 0 {
-        return world.lights.iter().map(|_| Vec3::z()).collect();
+        return (world.lights.iter().map(|_| Vec3::z()).collect(), None);
     }
     // Calculate hit once, then get info for all lights
-    let hit = &world.objects.get_object_hit(ray);
-    match hit {
-        None => world
-            .lights
+    let object_hit = world.objects.get_object_hit(ray);
+    match object_hit {
+        None => (
+            world
+                .lights
+                .iter()
+                .map(|light| light.no_hit(&ray, dist_so_far))
+                .collect(),
+            None,
+        ),
+        Some((obj, hit)) => (
+            match obj.material.scatter(&ray, &hit) {
+                None => world.lights.iter().map(|_| Vec3::z()).collect(),
+                Some(next_ray) => {
+                    ray_color_per_light(
+                        &next_ray,
+                        world,
+                        bounces_left - 1,
+                        dist_so_far + (hit.p - ray.origin).length(),
+                    )
+                    .0
+                }
+            }
             .iter()
-            .map(|light| light.no_hit(&ray, dist_so_far))
+            .zip(world.lights.iter())
+            .map(|(next_color, light)| {
+                obj.material.get_color(
+                    &ray,
+                    light.at(hit.p, world.objects, dist_so_far),
+                    &hit,
+                    *next_color,
+                )
+            })
             .collect(),
-        Some((obj, hit)) => match obj.material.scatter(&ray, &hit) {
-            None => world.lights.iter().map(|_| Vec3::z()).collect(),
-            Some(next_ray) => ray_color_per_light(
-                &next_ray,
-                world,
-                bounces_left - 1,
-                dist_so_far + (hit.p - ray.origin).length(),
-            ),
-        }
-        .iter()
-        .zip(world.lights.iter())
-        .map(|(next_color, light)| {
-            obj.material.get_color(
-                &ray,
-                light.at(hit.p, world.objects, dist_so_far),
-                &hit,
-                *next_color,
-            )
-        })
-        .collect(),
+            Option::Some(hit),
+        ),
     }
 }
 
-fn ray_color(ray: &Ray, world: &Scene, bounces_left: i32) -> Vec3 {
+fn ray_color(ray: &Ray, world: &Scene, bounces_left: i32) -> (Vec3, Option<Hit>) {
     // Gets the color of a specific ray in the scene
-    ray_color_per_light(ray, world, bounces_left, 0.0)
-        .iter()
-        .fold(Vec3::z(), |acc, x| acc + *x)
-        // Fixes issues when objects become too bright
-        .ln_1p()
-        .clamp(Vec3::new(MAX_LIGHT_VAL, MAX_LIGHT_VAL, MAX_LIGHT_VAL))
+    let (rays, hit) = ray_color_per_light(ray, world, bounces_left, 0.0);
+    (
+        rays.iter()
+            .fold(Vec3::z(), |acc, x| acc + *x)
+            // Fixes issues when objects become too bright
+            .ln_1p()
+            .clamp(Vec3::new(MAX_LIGHT_VAL, MAX_LIGHT_VAL, MAX_LIGHT_VAL)),
+        hit,
+    )
 }
 
 fn ray_from_image_pos(i: usize, j: usize, camera: &Camera) -> Ray {
@@ -102,8 +125,8 @@ fn ray_from_image_pos(i: usize, j: usize, camera: &Camera) -> Ray {
 fn main() {
     let camera = Camera::new_with_fov(Vec3::new(0.51, 0.2, 1.5), ASPECT_RATIO, 80.0);
 
-    // Initialize the image
-    let mut image: Vec<Vec<Vec3>> = vec![
+    // Initialize the image buffer
+    let mut image_buf: Vec<Vec<Vec3>> = vec![
         vec![
             Vec3 {
                 x: 0.0,
@@ -114,6 +137,11 @@ fn main() {
         ];
         IMAGE_HEIGHT
     ];
+
+    let mut image_normal: Vec<Vec<Option<Vec<Option<Hit>>>>> =
+        vec![vec![None; IMAGE_WIDTH]; IMAGE_HEIGHT];
+
+    let mut image_var: Vec<Vec<f64>> = vec![vec![0.0; IMAGE_WIDTH]; IMAGE_HEIGHT];
 
     // World
     let mut objects = Vec::new();
@@ -207,21 +235,25 @@ fn main() {
     };
 
     // Render
-    image
+    image_buf
         .iter_mut()
+        .zip(image_normal.iter_mut())
+        .zip(image_var.iter_mut())
         .zip(0..IMAGE_HEIGHT)
         .par_bridge()
-        .for_each(|(row, j)| {
+        .for_each(|(((row, normal_row), var_row), j)| {
             (0..IMAGE_WIDTH).for_each(|i| {
                 let mut color_uncertain = true;
                 let mut current_iteration = 1;
+                let mut normals: Vec<Option<Hit>> = Vec::new();
                 while color_uncertain && current_iteration <= MAX_DYNAMIC_OVERSAMPLING_FACTOR {
                     let mut colors = Vec::new();
                     // Get the new color samples
                     for _ in 0..BASE_SAMPLES_PER_PIXEL {
                         let ray = ray_from_image_pos(i, j, &camera);
-                        let c = ray_color(&ray, &scene, MAX_BOUNCES);
+                        let (c, h_o) = ray_color(&ray, &scene, MAX_BOUNCES);
                         colors.push(c);
+                        normals.push(h_o);
                     }
                     // Calculate color mean of current samples
                     let current_mean = colors.iter().fold(Vec3::z(), |acc, v| acc + *v)
@@ -230,11 +262,12 @@ fn main() {
                     let total_mean = (current_mean + row[i] * (current_iteration - 1) as f64)
                         * (1.0 / current_iteration as f64);
                     // Calculate the corrected sample standard deviation
-                    let corrected_sample_std = (colors
+                    let corrected_sample_std = colors
                         .iter()
                         .fold(0.0, |acc, v| acc + (total_mean - *v).length_squared())
-                        / (colors.len() - 1) as f64)
-                        .sqrt();
+                        / ((colors.len() - 1) as f64).sqrt();
+
+                    var_row[i] = corrected_sample_std.max(EPSILON);
 
                     // Check value of the standard error of the mean, if it is high, get more samples
                     color_uncertain = corrected_sample_std
@@ -244,7 +277,106 @@ fn main() {
                     row[i] = total_mean;
                     current_iteration += 1;
                 }
+                // Calculate the inter similarity, i.e. for a pixel how similar all the rays are that contributed to it
+                // The value will be true if all pixels hit an object and the distance of the hits is lower than some threshold
+                // TODO: Currently only getting distance to first ray, fix
+                let inter_sim = {
+                    let mut ret = true;
+                    let s = &normals[0];
+                    match s {
+                        Some(h) => {
+                            for o in &normals {
+                                match o {
+                                    Some(h2) => {
+                                        if (h.p - h2.p).length() > INTER_SIMILARITY_DIST_THRESHOLD {
+                                            ret = false;
+                                            break;
+                                        }
+                                    }
+                                    None => {
+                                        ret = false;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        None => ret = false,
+                    };
+                    ret
+                };
+                if inter_sim {
+                    normal_row[i] = Some(normals);
+                } else {
+                    normal_row[i] = None;
+                }
             })
+        });
+
+    let mut image: Vec<Vec<Vec3>> = vec![
+        vec![
+            Vec3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            };
+            IMAGE_WIDTH
+        ];
+        IMAGE_HEIGHT
+    ];
+
+    // Post processing
+    (1..IMAGE_HEIGHT - 1)
+        .into_iter()
+        .zip(image.iter_mut())
+        .par_bridge()
+        .for_each(|(i, image_row)| {
+            for j in 1..IMAGE_WIDTH - 1 {
+                if POST_PROCESS {
+                    // Apply smootihing by averaging (weighted) over squares of pixels of size SMOOTH_SIZE
+                    // Will only average if pixels correspond to the same object in scene and are then scaled by normal vector similarity
+                    let mut m = Vec3::z();
+                    let mut w = 0.0;
+                    let hits_o = &image_normal[i][j];
+                    image_row[j] = match hits_o {
+                        Some(hits) => {
+                            for k in 0..SMOOTH_SIZE {
+                                for l in 0..SMOOTH_SIZE {
+                                    let pos_h = i + k - SMOOTH_SIZE / 2;
+                                    let pos_w = j + l - SMOOTH_SIZE / 2;
+                                    let pw = if k == SMOOTH_SIZE / 2 && l == SMOOTH_SIZE / 2 {
+                                        // Base weight gets scaled depending on the variance of the pixel
+                                        // If we are super sure of the pixel color (variance close to 0) this will make sure it doesn't get blurred
+                                        SMOOTHING_BASE_WEIGHT / &image_var[i][j]
+                                    } else {
+                                        match &image_normal[pos_h][pos_w] {
+                                            Some(normals) => {
+                                                // Get mean of the normal vectors
+                                                // TODO: This should all only be computed once
+                                                let h_mean =
+                                                    hits.iter().fold(Vec3::z(), |acc, v| {
+                                                        acc + v.as_ref().unwrap().normal
+                                                    }) * (1.0 / hits.len() as f64);
+                                                let current_mean =
+                                                    normals.iter().fold(Vec3::z(), |acc, v| {
+                                                        acc + v.as_ref().unwrap().normal
+                                                    }) * (1.0 / normals.len() as f64);
+                                                current_mean.dot(&h_mean).max(0.0)
+                                            }
+                                            None => 0.0,
+                                        }
+                                    };
+                                    m += image_buf[pos_h][pos_w] * pw;
+                                    w += pw;
+                                }
+                            }
+                            m / w
+                        }
+                        None => image_buf[i][j],
+                    }
+                } else {
+                    image_row[j] = image_buf[i][j];
+                }
+            }
         });
 
     // Write to file
