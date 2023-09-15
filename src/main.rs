@@ -39,18 +39,19 @@ use triangle::Triangle;
 use vec3::Vec3;
 
 const MAX_BOUNCES: i32 = 10;
-const BASE_SAMPLES_PER_PIXEL: usize = 10;
-const MAX_DYNAMIC_OVERSAMPLING_FACTOR: i32 = 10;
+const BASE_SAMPLES_PER_PIXEL: i32 = 30;
+const DO_DYNAMIC_OVERSAMPLING: bool = true;
+const MAX_DYNAMIC_OVERSAMPLING_FACTOR: i32 = 30;
 const MAX_LIGHT_VAL: f64 = 2.0;
 const COLOR_MEAN_UNCERTAINTY_THRESHOLD: f64 = 0.001;
-const POST_PROCESS: bool = true;
-const INTER_SIMILARITY_DIST_THRESHOLD: f64 = 0.1;
-const SMOOTH_SIZE: usize = 3;
-const SMOOTHING_BASE_WEIGHT: f64 = 2.0;
+const DO_POST_PROCESSING: bool = true;
+const INTER_SIMILARITY_DIST_THRESHOLD: f64 = 2.0;
+const SMOOTH_SIZE: i32 = 3;
+const SMOOTHING_BASE_WEIGHT: f64 = 4.0;
 
 static ASPECT_RATIO: f64 = 16.0 / 9.0;
 
-static IMAGE_HEIGHT: usize = 400;
+static IMAGE_HEIGHT: usize = 1000;
 static IMAGE_WIDTH: usize = (IMAGE_HEIGHT as f64 * ASPECT_RATIO) as usize;
 
 fn ray_color_per_light(
@@ -138,8 +139,7 @@ fn main() {
         IMAGE_HEIGHT
     ];
 
-    let mut image_normal: Vec<Vec<Option<Vec<Option<Hit>>>>> =
-        vec![vec![None; IMAGE_WIDTH]; IMAGE_HEIGHT];
+    let mut image_normal: Vec<Vec<Option<Vec3>>> = vec![vec![None; IMAGE_WIDTH]; IMAGE_HEIGHT];
 
     let mut image_var: Vec<Vec<f64>> = vec![vec![0.0; IMAGE_WIDTH]; IMAGE_HEIGHT];
 
@@ -245,19 +245,23 @@ fn main() {
             (0..IMAGE_WIDTH).for_each(|i| {
                 let mut color_uncertain = true;
                 let mut current_iteration = 1;
-                let mut normals: Vec<Option<Hit>> = Vec::new();
-                while color_uncertain && current_iteration <= MAX_DYNAMIC_OVERSAMPLING_FACTOR {
+                let mut hits: Vec<Option<Hit>> = Vec::new();
+                while (DO_DYNAMIC_OVERSAMPLING
+                    && color_uncertain
+                    && current_iteration <= MAX_DYNAMIC_OVERSAMPLING_FACTOR)
+                    || current_iteration == 1
+                {
                     let mut colors = Vec::new();
                     // Get the new color samples
                     for _ in 0..BASE_SAMPLES_PER_PIXEL {
                         let ray = ray_from_image_pos(i, j, &camera);
                         let (c, h_o) = ray_color(&ray, &scene, MAX_BOUNCES);
                         colors.push(c);
-                        normals.push(h_o);
+                        hits.push(h_o);
                     }
                     // Calculate color mean of current samples
                     let current_mean = colors.iter().fold(Vec3::z(), |acc, v| acc + *v)
-                        * (1.0 / colors.len() as f64);
+                        * (1.0 / BASE_SAMPLES_PER_PIXEL as f64);
                     // Calculate mean of all iterations combined
                     let total_mean = (current_mean + row[i] * (current_iteration - 1) as f64)
                         * (1.0 / current_iteration as f64);
@@ -265,7 +269,7 @@ fn main() {
                     let corrected_sample_std = colors
                         .iter()
                         .fold(0.0, |acc, v| acc + (total_mean - *v).length_squared())
-                        / ((colors.len() - 1) as f64).sqrt();
+                        / ((BASE_SAMPLES_PER_PIXEL - 1) as f64).sqrt();
 
                     var_row[i] = corrected_sample_std.max(EPSILON);
 
@@ -277,95 +281,75 @@ fn main() {
                     row[i] = total_mean;
                     current_iteration += 1;
                 }
+
                 // Calculate the inter similarity, i.e. for a pixel how similar all the rays are that contributed to it
-                // The value will be true if all pixels hit an object and the distance of the hits is lower than some threshold
-                // TODO: Currently only getting distance to first ray, fix
-                let inter_sim = {
-                    let mut ret = true;
-                    let s = &normals[0];
-                    match s {
-                        Some(h) => {
-                            for o in &normals {
-                                match o {
-                                    Some(h2) => {
-                                        if (h.p - h2.p).length() > INTER_SIMILARITY_DIST_THRESHOLD {
-                                            ret = false;
-                                            break;
-                                        }
-                                    }
-                                    None => {
-                                        ret = false;
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                        None => ret = false,
-                    };
-                    ret
-                };
-                if inter_sim {
-                    normal_row[i] = Some(normals);
-                } else {
-                    normal_row[i] = None;
-                }
-            })
+                // The value will be true if all rays hit an object and the distance of the hits is lower than some threshold
+                // This should also somehow take into account if the object is transparent, e.g. the dielectric to make sure
+                // that we don't get blurry edges inside the object where another edge is refracted
+                let sum_o = hits.iter().fold(Some(Vec3::z()), |sum_o_acc, h_o| {
+                    sum_o_acc.and_then(|sum| h_o.as_ref().and_then(|h| Some(sum + h.normal)))
+                });
+                normal_row[i] = sum_o.and_then(|sum_vec| {
+                    let avg_vec = sum_vec * (1.0 / hits.len() as f64);
+                    if hits.iter().any(|hit| {
+                        (hit.as_ref().unwrap().normal - avg_vec).length()
+                            > INTER_SIMILARITY_DIST_THRESHOLD
+                    }) {
+                        None
+                    } else {
+                        Some(avg_vec)
+                    }
+                });
+            });
         });
 
-    let mut image: Vec<Vec<Vec3>> = vec![
-        vec![
-            Vec3 {
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
-            };
-            IMAGE_WIDTH
-        ];
-        IMAGE_HEIGHT
-    ];
+    let mut image: Vec<Vec<Vec3>> = vec![vec![Vec3::z(); IMAGE_WIDTH]; IMAGE_HEIGHT];
 
     // Post processing
-    (1..IMAGE_HEIGHT - 1)
+    (0..IMAGE_HEIGHT)
         .into_iter()
         .zip(image.iter_mut())
         .par_bridge()
         .for_each(|(i, image_row)| {
-            for j in 1..IMAGE_WIDTH - 1 {
-                if POST_PROCESS {
-                    // Apply smootihing by averaging (weighted) over squares of pixels of size SMOOTH_SIZE
+            for j in 0..IMAGE_WIDTH {
+                if DO_POST_PROCESSING {
+                    // Apply smoothing by averaging (weighted) over squares of pixels of size SMOOTH_SIZE
                     // Will only average if pixels correspond to the same object in scene and are then scaled by normal vector similarity
                     let mut m = Vec3::z();
                     let mut w = 0.0;
-                    let hits_o = &image_normal[i][j];
-                    image_row[j] = match hits_o {
-                        Some(hits) => {
+                    let normal_avg_o = &image_normal[i][j];
+                    image_row[j] = match normal_avg_o {
+                        Some(normal_avg) => {
                             for k in 0..SMOOTH_SIZE {
                                 for l in 0..SMOOTH_SIZE {
-                                    let pos_h = i + k - SMOOTH_SIZE / 2;
-                                    let pos_w = j + l - SMOOTH_SIZE / 2;
+                                    let pos_h: i32 =
+                                        i32::try_from(i).unwrap() + k - SMOOTH_SIZE / 2;
+                                    let pos_w: i32 =
+                                        i32::try_from(j).unwrap() + l - SMOOTH_SIZE / 2;
+                                    if pos_h < 0
+                                        || pos_h >= IMAGE_HEIGHT.try_into().unwrap()
+                                        || pos_w < 0
+                                        || pos_w >= IMAGE_WIDTH.try_into().unwrap()
+                                    {
+                                        continue;
+                                    }
                                     let pw = if k == SMOOTH_SIZE / 2 && l == SMOOTH_SIZE / 2 {
                                         // Base weight gets scaled depending on the variance of the pixel
                                         // If we are super sure of the pixel color (variance close to 0) this will make sure it doesn't get blurred
                                         SMOOTHING_BASE_WEIGHT / &image_var[i][j]
                                     } else {
-                                        match &image_normal[pos_h][pos_w] {
-                                            Some(normals) => {
-                                                // Get mean of the normal vectors
-                                                // TODO: This should all only be computed once
-                                                let h_mean =
-                                                    hits.iter().fold(Vec3::z(), |acc, v| {
-                                                        acc + v.as_ref().unwrap().normal
-                                                    }) * (1.0 / hits.len() as f64);
-                                                let current_mean =
-                                                    normals.iter().fold(Vec3::z(), |acc, v| {
-                                                        acc + v.as_ref().unwrap().normal
-                                                    }) * (1.0 / normals.len() as f64);
-                                                current_mean.dot(&h_mean).max(0.0)
+                                        match &image_normal[usize::try_from(pos_h).unwrap()]
+                                            [usize::try_from(pos_w).unwrap()]
+                                        {
+                                            Some(normal_avg_other) => {
+                                                normal_avg.dot(normal_avg_other).max(0.0)
                                             }
                                             None => 0.0,
                                         }
                                     };
-                                    m += image_buf[pos_h][pos_w] * pw;
+                                    m += image_buf[usize::try_from(pos_h).unwrap()]
+                                        [usize::try_from(pos_w).unwrap()]
+                                        * pw;
                                     w += pw;
                                 }
                             }

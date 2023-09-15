@@ -6,11 +6,12 @@ Extensions to the book:
 - Shadows / directional light
 - Multiple light sources
 - K-d Tree for space division and faster ray intersection checks
-- Triangles and meshes (WIP, currently not optimized)
-- Reading .obj files (only subset of specification supported)
-- Multiprocessing
-- Dynamic resampling of pixels with high variance color values
 - Bounding boxes for intersection-test speedup
+- Multiprocessing
+- Triangles and meshes (currently not optimized)
+- Reading .obj files (only subset of specification supported)
+- Dynamic oversampling of pixels with high variance color values (automatically smoothing noisy parts)
+- Post-processing smoothing taking into account the scene geometry
 
 Note that not all formulas for calculating brightness, reflection, etc. are necessarily "correct" or standard practice. They are a mixture of what is efficient (enough), looks good, and seemed plausible.
 
